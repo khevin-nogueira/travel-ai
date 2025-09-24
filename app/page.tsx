@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
+import { DestinationAutocomplete } from "@/components/destination-autocomplete"
+import { getDestinationByCode } from "@/data/destinations"
 
 export default function Home() {
   const [isDark, setIsDark] = useState(true)
@@ -12,10 +14,12 @@ export default function Home() {
   const [searchData, setSearchData] = useState({
     origem: "",
     destino: "",
-    data: ""
+    dataIda: "",
+    dataVolta: ""
   })
   const [selectedFlight, setSelectedFlight] = useState<any>(null)
   const [selectedHotel, setSelectedHotel] = useState<any>(null)
+  const [showMap, setShowMap] = useState(false)
   const [showFlights, setShowFlights] = useState(false)
   const [showHotels, setShowHotels] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
@@ -52,7 +56,7 @@ export default function Home() {
     <div className="min-h-screen bg-background text-foreground relative">
       <nav className="fixed left-8 top-1/2 -translate-y-1/2 z-10 hidden lg:block">
         <div className="flex flex-col gap-4">
-          {["intro", "search", "flights", "hotels", "checkout"].map((section) => (
+          {["intro", "search", "map-section", "flights", "hotels", "checkout"].map((section) => (
             <button
               key={section}
               onClick={() => document.getElementById(section)?.scrollIntoView({ behavior: "smooth" })}
@@ -139,50 +143,43 @@ export default function Home() {
 
             <div className="max-w-4xl">
               <div className="p-8 border border-border rounded-2xl bg-background/50 backdrop-blur-sm">
-                <div className="grid lg:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground font-mono">ORIGEM</label>
-                    <select
-                      value={searchData.origem}
-                      onChange={(e) => setSearchData({ ...searchData, origem: e.target.value })}
-                      className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
-                    >
-                      <option value="">Selecione a origem</option>
-                      <option value="SAO">São Paulo (SAO)</option>
-                      <option value="RIO">Rio de Janeiro (RIO)</option>
-                      <option value="BSB">Brasília (BSB)</option>
-                      <option value="FOR">Fortaleza (FOR)</option>
-                      <option value="SSA">Salvador (SSA)</option>
-                    </select>
-                  </div>
+                <div className="space-y-6">
+                  {/* Linha 1: Origem */}
+                  <DestinationAutocomplete
+                    label="Origem"
+                    placeholder="De onde você parte?"
+                    value={searchData.origem}
+                    onValueChange={(value) => setSearchData({ ...searchData, origem: value })}
+                  />
 
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground font-mono">DESTINO</label>
-                    <select
-                      value={searchData.destino}
-                      onChange={(e) => setSearchData({ ...searchData, destino: e.target.value })}
-                      className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
-                    >
-                      <option value="">Selecione o destino</option>
-                      <option value="NYC">Nova York (NYC)</option>
-                      <option value="PAR">Paris (PAR)</option>
-                      <option value="LON">Londres (LON)</option>
-                      <option value="TOK">Tóquio (TOK)</option>
-                      <option value="MAD">Madrid (MAD)</option>
-                      <option value="ROM">Roma (ROM)</option>
-                      <option value="BER">Berlim (BER)</option>
-                      <option value="DUB">Dubai (DUB)</option>
-                    </select>
-                  </div>
+                  {/* Linha 2: Destino */}
+                  <DestinationAutocomplete
+                    label="Destino"
+                    placeholder="Para onde você vai?"
+                    value={searchData.destino}
+                    onValueChange={(value) => setSearchData({ ...searchData, destino: value })}
+                  />
 
-                  <div className="space-y-2">
-                    <label className="text-sm text-muted-foreground font-mono">DATA</label>
-                    <input
-                      type="date"
-                      value={searchData.data}
-                      onChange={(e) => setSearchData({ ...searchData, data: e.target.value })}
-                      className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
-                    />
+                  {/* Linha 3: Datas lado a lado */}
+                  <div className="grid grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label className="text-sm text-muted-foreground font-mono">DATA DE IDA</label>
+                      <input
+                        type="date"
+                        value={searchData.dataIda}
+                        onChange={(e) => setSearchData({ ...searchData, dataIda: e.target.value })}
+                        className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-sm text-muted-foreground font-mono">DATA DE VOLTA</label>
+                      <input
+                        type="date"
+                        value={searchData.dataVolta}
+                        onChange={(e) => setSearchData({ ...searchData, dataVolta: e.target.value })}
+                        className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -190,148 +187,227 @@ export default function Home() {
                   <button
                     onClick={() => {
                       console.log('Botão clicado!', searchData)
-                      if (searchData.origem && searchData.destino && searchData.data) {
-                        console.log('Mostrando voos...')
-                        setShowFlights(true)
+                      if (searchData.origem && searchData.destino && searchData.dataIda) {
+                        console.log('Mostrando mapa...')
+                        setShowMap(true)
                         setTimeout(() => {
-                          document.getElementById('flights')?.scrollIntoView({ behavior: 'smooth' })
+                          document.getElementById('map-section')?.scrollIntoView({ behavior: 'smooth' })
                         }, 100)
                       } else {
                         console.log('Dados incompletos:', searchData)
                       }
                     }}
-                    disabled={!searchData.origem || !searchData.destino || !searchData.data}
+                    disabled={!searchData.origem || !searchData.destino || !searchData.dataIda}
                     className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
                   >
                     Buscar Voos
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </section>
 
-              {searchData.origem && searchData.destino && (
-                <div className="mt-12">
-                  <div className="p-6 border border-border rounded-2xl bg-background/50 backdrop-blur-sm">
-                    <h3 className="text-xl font-medium mb-6 text-center">Rota de Voo</h3>
-                    
-                    {/* Mapa Simulado */}
-                    <div className="relative bg-slate-900 rounded-lg overflow-hidden" style={{ height: '400px' }}>
-                      {/* Grid de fundo simulando mapa */}
-                      <div className="absolute inset-0 opacity-20">
-                        <svg width="100%" height="100%" className="text-slate-700">
-                          <defs>
-                            <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
-                              <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1"/>
-                            </pattern>
-                          </defs>
-                          <rect width="100%" height="100%" fill="url(#grid)" />
-                        </svg>
-                      </div>
+        {showMap && (
+          <section
+            id="map-section"
+            ref={(el) => { sectionsRef.current[2] = el }}
+            className="min-h-screen py-20 sm:py-32 animate-fade-in-up"
+          >
+            <div className="space-y-12 sm:space-y-16">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                <h2 className="text-3xl sm:text-4xl font-light">Rota Selecionada</h2>
+                <div className="text-sm text-muted-foreground font-mono">
+                  CONFIRME SUA VIAGEM
+                </div>
+              </div>
 
-                      {/* Continentes simulados */}
-                      <div className="absolute inset-0">
-                        <svg width="100%" height="100%" className="text-green-900/30">
-                          <path d="M 50 100 Q 150 80 250 120 Q 350 140 400 100 Q 450 80 500 100 L 500 200 Q 400 180 300 200 Q 200 220 100 200 Z" fill="currentColor"/>
-                          <path d="M 600 150 Q 700 130 800 150 Q 850 170 900 150 L 900 250 Q 800 230 700 250 Q 650 270 600 250 Z" fill="currentColor"/>
-                        </svg>
-                      </div>
-
-                      {/* Ponto de Origem */}
-                      <div className="absolute" style={{ left: '20%', top: '60%' }}>
-                        <div className="relative">
-                          <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse border-2 border-white shadow-lg"></div>
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-xs text-white bg-blue-500 px-2 py-1 rounded whitespace-nowrap">
-                            {searchData.origem}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Ponto de Destino */}
-                      <div className="absolute" style={{ left: '75%', top: '35%' }}>
-                        <div className="relative">
-                          <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse border-2 border-white shadow-lg"></div>
-                          <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-xs text-white bg-red-500 px-2 py-1 rounded whitespace-nowrap">
-                            {searchData.destino}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Linha de Voo Animada */}
-                      <svg className="absolute inset-0" width="100%" height="100%">
+              <div className="max-w-4xl">
+                <div className="p-6 border border-border rounded-2xl bg-background/50 backdrop-blur-sm">
+                  <h3 className="text-xl font-medium mb-6 text-center">Rota de Voo</h3>
+                  
+                  {/* Mapa Simulado */}
+                  <div className="relative bg-slate-900 rounded-lg overflow-hidden" style={{ height: '400px' }}>
+                    {/* Grid de fundo simulando mapa */}
+                    <div className="absolute inset-0 opacity-20">
+                      <svg width="100%" height="100%" className="text-slate-700">
                         <defs>
-                          <linearGradient id="flightPath" x1="0%" y1="0%" x2="100%" y2="0%">
-                            <stop offset="0%" stopColor="#3b82f6" stopOpacity="1"/>
-                            <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.8"/>
-                            <stop offset="100%" stopColor="#ef4444" stopOpacity="1"/>
-                          </linearGradient>
+                          <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                            <path d="M 40 0 L 0 0 0 40" fill="none" stroke="currentColor" strokeWidth="1"/>
+                          </pattern>
                         </defs>
-                        <path
-                          d="M 20% 60% Q 50% 20% 75% 35%"
-                          stroke="url(#flightPath)"
-                          strokeWidth="3"
-                          strokeDasharray="10,5"
-                          fill="none"
-                          className="animate-pulse"
-                        />
+                        <rect width="100%" height="100%" fill="url(#grid)" />
                       </svg>
+                    </div>
 
-                      {/* Avião Animado */}
-                      <div className="absolute animate-bounce" style={{ left: '47%', top: '40%' }}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="white" className="rotate-45">
-                          <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
-                        </svg>
+                    {/* Continentes simulados */}
+                    <div className="absolute inset-0">
+                      <svg width="100%" height="100%" className="text-green-900/30">
+                        <path d="M 50 100 Q 150 80 250 120 Q 350 140 400 100 Q 450 80 500 100 L 500 200 Q 400 180 300 200 Q 200 220 100 200 Z" fill="currentColor"/>
+                        <path d="M 600 150 Q 700 130 800 150 Q 850 170 900 150 L 900 250 Q 800 230 700 250 Q 650 270 600 250 Z" fill="currentColor"/>
+                      </svg>
+                    </div>
+
+                    {/* Ponto de Origem */}
+                    <div className="absolute" style={{ left: '20%', top: '60%' }}>
+                      <div className="relative">
+                        <div className="w-4 h-4 bg-blue-500 rounded-full animate-pulse border-2 border-white shadow-lg"></div>
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-xs text-white bg-blue-500 px-2 py-1 rounded whitespace-nowrap">
+                          {getDestinationByCode(searchData.origem)?.city || searchData.origem}
+                        </div>
                       </div>
+                    </div>
 
-                      {/* Informações da Rota */}
-                      <div className="absolute bottom-4 left-4 right-4">
-                        <div className="bg-black/70 rounded-lg p-4 text-white">
-                          <div className="grid grid-cols-3 gap-4 text-center">
-                            <div>
-                              <div className="text-xs text-gray-300">DISTÂNCIA</div>
-                              <div className="text-sm font-medium">
-                                {searchData.origem === 'SAO' && searchData.destino === 'NYC' ? '7.700 km' :
-                                 searchData.origem === 'SAO' && searchData.destino === 'PAR' ? '9.200 km' :
-                                 searchData.origem === 'SAO' && searchData.destino === 'LON' ? '11.100 km' :
-                                 searchData.origem === 'RIO' && searchData.destino === 'NYC' ? '7.800 km' :
-                                 '8.500 km'}
-                              </div>
+                    {/* Ponto de Destino */}
+                    <div className="absolute" style={{ left: '75%', top: '35%' }}>
+                      <div className="relative">
+                        <div className="w-4 h-4 bg-red-500 rounded-full animate-pulse border-2 border-white shadow-lg"></div>
+                        <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-xs text-white bg-red-500 px-2 py-1 rounded whitespace-nowrap">
+                          {getDestinationByCode(searchData.destino)?.city || searchData.destino}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Linha de Voo Animada */}
+                    <svg className="absolute inset-0" width="100%" height="100%">
+                      <defs>
+                        <linearGradient id="flightPath" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity="1"/>
+                          <stop offset="50%" stopColor="#8b5cf6" stopOpacity="0.8"/>
+                          <stop offset="100%" stopColor="#ef4444" stopOpacity="1"/>
+                        </linearGradient>
+                      </defs>
+                      <path
+                        d="M 20% 60% Q 50% 20% 75% 35%"
+                        stroke="url(#flightPath)"
+                        strokeWidth="3"
+                        strokeDasharray="10,5"
+                        fill="none"
+                        className="animate-pulse"
+                      />
+                    </svg>
+
+                    {/* Avião Animado */}
+                    <div className="absolute animate-bounce" style={{ left: '47%', top: '40%' }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white" className="rotate-45">
+                        <path d="M21 16v-2l-8-5V3.5c0-.83-.67-1.5-1.5-1.5S10 2.67 10 3.5V9l-8 5v2l8-2.5V19l-2 1.5V22l3.5-1 3.5 1v-1.5L13 19v-5.5l8 2.5z"/>
+                      </svg>
+                    </div>
+
+                    {/* Informações da Rota */}
+                    <div className="absolute bottom-4 left-4 right-4">
+                      <div className="bg-black/70 rounded-lg p-4 text-white">
+                        <div className="grid grid-cols-3 gap-4 text-center">
+                          <div>
+                            <div className="text-xs text-gray-300">DISTÂNCIA</div>
+                            <div className="text-sm font-medium">
+                              {(() => {
+                                const origem = getDestinationByCode(searchData.origem)
+                                const destino = getDestinationByCode(searchData.destino)
+                                if (origem && destino) {
+                                  const distance = Math.round(Math.sqrt(
+                                    Math.pow(destino.coordinates.lat - origem.coordinates.lat, 2) + 
+                                    Math.pow(destino.coordinates.lng - origem.coordinates.lng, 2)
+                                  ) * 111)
+                                  return `${distance.toLocaleString()} km`
+                                }
+                                return '8.500 km'
+                              })()}
                             </div>
-                            <div>
-                              <div className="text-xs text-gray-300">TEMPO ESTIMADO</div>
-                              <div className="text-sm font-medium">
-                                {searchData.origem === 'SAO' && searchData.destino === 'NYC' ? '10h 30m' :
-                                 searchData.origem === 'SAO' && searchData.destino === 'PAR' ? '11h 45m' :
-                                 searchData.origem === 'SAO' && searchData.destino === 'LON' ? '12h 15m' :
-                                 searchData.origem === 'RIO' && searchData.destino === 'NYC' ? '10h 45m' :
-                                 '11h 20m'}
-                              </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-300">TEMPO ESTIMADO</div>
+                            <div className="text-sm font-medium">
+                              {(() => {
+                                const origem = getDestinationByCode(searchData.origem)
+                                const destino = getDestinationByCode(searchData.destino)
+                                if (origem && destino) {
+                                  const distance = Math.sqrt(
+                                    Math.pow(destino.coordinates.lat - origem.coordinates.lat, 2) + 
+                                    Math.pow(destino.coordinates.lng - origem.coordinates.lng, 2)
+                                  ) * 111
+                                  const hours = Math.floor(distance / 800) + 8
+                                  const minutes = Math.round((distance / 800 % 1) * 60)
+                                  return `${hours}h ${minutes}m`
+                                }
+                                return '11h 20m'
+                              })()}
                             </div>
-                            <div>
-                              <div className="text-xs text-gray-300">FUSO HORÁRIO</div>
-                              <div className="text-sm font-medium">
-                                {searchData.destino === 'NYC' ? '-2h' :
-                                 searchData.destino === 'PAR' ? '+4h' :
-                                 searchData.destino === 'LON' ? '+4h' :
-                                 searchData.destino === 'TOK' ? '+12h' :
-                                 '+3h'}
-                              </div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-300">PAÍSES</div>
+                            <div className="text-sm font-medium">
+                              {(() => {
+                                const origem = getDestinationByCode(searchData.origem)
+                                const destino = getDestinationByCode(searchData.destino)
+                                if (origem && destino && origem.country !== destino.country) {
+                                  return `${origem.country} → ${destino.country}`
+                                }
+                                return origem?.country || destino?.country || 'Internacional'
+                              })()}
                             </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
+
+                  {/* Informações das Datas */}
+                  <div className="mt-6 p-4 bg-muted/30 rounded-lg">
+                    <div className="grid grid-cols-2 gap-6 text-center">
+                      <div>
+                        <div className="text-sm text-muted-foreground font-mono">DATA DE IDA</div>
+                        <div className="text-lg font-medium mt-1">
+                          {new Date(searchData.dataIda).toLocaleDateString('pt-BR', {
+                            weekday: 'short',
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </div>
+                      </div>
+                      {searchData.dataVolta && (
+                        <div>
+                          <div className="text-sm text-muted-foreground font-mono">DATA DE VOLTA</div>
+                          <div className="text-lg font-medium mt-1">
+                            {new Date(searchData.dataVolta).toLocaleDateString('pt-BR', {
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Botão Buscar Voos Disponíveis */}
+                  <div className="mt-8 flex justify-center">
+                    <button
+                      onClick={() => {
+                        setShowFlights(true)
+                        setTimeout(() => {
+                          document.getElementById('flights')?.scrollIntoView({ behavior: 'smooth' })
+                        }, 100)
+                      }}
+                      className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium"
+                    >
+                      Buscar Voos Disponíveis
+                    </button>
+                  </div>
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
 
         {showFlights && (
-        <section
+          <section
             id="flights"
-            ref={(el) => { sectionsRef.current[2] = el }}
+            ref={(el) => { sectionsRef.current[3] = el }}
             className="min-h-screen py-20 sm:py-32 animate-fade-in-up"
-        >
+          >
           <div className="space-y-12 sm:space-y-16">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <h2 className="text-3xl sm:text-4xl font-light">Voos Disponíveis</h2>
@@ -450,14 +526,14 @@ export default function Home() {
         {showHotels && (
           <section
             id="hotels"
-            ref={(el) => { sectionsRef.current[3] = el }}
+            ref={(el) => { sectionsRef.current[4] = el }}
             className="min-h-screen py-20 sm:py-32 animate-fade-in-up"
           >
             <div className="space-y-12 sm:space-y-16">
               <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
                 <h2 className="text-3xl sm:text-4xl font-light">Hotéis Disponíveis</h2>
                 <div className="text-sm text-muted-foreground font-mono">
-                  {searchData.destino} • {searchData.data}
+                  {searchData.destino} • {searchData.dataIda}{searchData.dataVolta ? ` - ${searchData.dataVolta}` : ''}
               </div>
             </div>
 
@@ -550,7 +626,7 @@ export default function Home() {
         )}
 
         {showCheckout && (
-          <section id="checkout" ref={(el) => { sectionsRef.current[4] = el }} className="py-20 sm:py-32 animate-fade-in-up">
+          <section id="checkout" ref={(el) => { sectionsRef.current[5] = el }} className="py-20 sm:py-32 animate-fade-in-up">
             <div className="space-y-12 sm:space-y-16">
               <h2 className="text-3xl sm:text-4xl font-light">Finalizar Reserva</h2>
 
@@ -570,9 +646,15 @@ export default function Home() {
                           <span>{searchData.origem} → {searchData.destino}</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Data</span>
-                          <span>{searchData.data}</span>
+                          <span className="text-muted-foreground">Data de Ida</span>
+                          <span>{searchData.dataIda}</span>
                         </div>
+                        {searchData.dataVolta && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Data de Volta</span>
+                            <span>{searchData.dataVolta}</span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Horário</span>
                           <span>{selectedFlight.departure} - {selectedFlight.arrival}</span>
