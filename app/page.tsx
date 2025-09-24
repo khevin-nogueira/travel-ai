@@ -15,6 +15,7 @@ export default function Home() {
   const [activeSection, setActiveSection] = useState("")
   const sectionsRef = useRef<(HTMLElement | null)[]>([])
 
+
   // Travel booking states
   const [searchData, setSearchData] = useState({
     origem: "",
@@ -56,14 +57,39 @@ export default function Home() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
+        // Priorizar seções mais avançadas no fluxo
+        const sectionPriority = {
+          'checkout': 6,
+          'hotels': 5,
+          'flights': 4,
+          'map-section': 3,
+          'search': 2,
+          'intro': 1
+        }
+
+        let bestSection = null
+        let maxPriority = 0
+        let maxRatio = 0
+
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             entry.target.classList.add("animate-fade-in-up")
-            setActiveSection(entry.target.id)
+            const priority = sectionPriority[entry.target.id as keyof typeof sectionPriority] || 0
+            
+            // Priorizar por prioridade da seção, depois por ratio de intersecção
+            if (priority > maxPriority || (priority === maxPriority && entry.intersectionRatio > maxRatio)) {
+              maxPriority = priority
+              maxRatio = entry.intersectionRatio
+              bestSection = entry.target.id
+            }
           }
         })
+
+        if (bestSection) {
+          setActiveSection(bestSection)
+        }
       },
-      { threshold: 0.3, rootMargin: "0px 0px -20% 0px" },
+      { threshold: [0.1, 0.3, 0.5, 0.7], rootMargin: "0px 0px -10% 0px" },
     )
 
     sectionsRef.current.forEach((section) => {
@@ -71,7 +97,7 @@ export default function Home() {
     })
 
     return () => observer.disconnect()
-  }, [])
+  }, [showMap, showFlights, showHotels, showCheckout])
 
   // Auto-scroll das mensagens do chatbot
   useEffect(() => {
@@ -92,6 +118,24 @@ export default function Home() {
   const toggleTheme = () => {
     setIsDark(!isDark)
   }
+
+  // Função para atualizar seção ativa programaticamente
+  const updateActiveSection = (sectionId: string) => {
+    setActiveSection(sectionId)
+  }
+
+  // Effect para garantir que a seção ativa seja atualizada quando elementos aparecem
+  useEffect(() => {
+    if (showCheckout) {
+      setActiveSection('checkout')
+    } else if (showHotels && !showCheckout) {
+      setActiveSection('hotels')
+    } else if (showFlights && !showHotels) {
+      setActiveSection('flights')
+    } else if (showMap && !showFlights) {
+      setActiveSection('map-section')
+    }
+  }, [showMap, showFlights, showHotels, showCheckout])
 
   const addChatbotMessage = (text: string, type: 'info' | 'success' | 'guidance' = 'info', messageKey?: string, cardData?: any) => {
     // Se foi fornecida uma chave e já foi enviada, não enviar novamente
@@ -452,7 +496,10 @@ export default function Home() {
               onClick={() => {
                 setShowChatbot(true)
                 addChatbotMessage('Olá! Sou a Lívia Assist, sua assistente pessoal de viagem. Vou te ajudar durante todo o processo de reserva! 🌟\n\nPara começar, você precisa preencher os campos de origem, destino e data de ida. Vamos começar?', 'info', 'welcome-start-message')
-                document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' })
+                setTimeout(() => {
+                  document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' })
+                  updateActiveSection('search')
+                }, 100)
               }}
               className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-all duration-300 font-medium text-lg group"
             >
@@ -638,6 +685,7 @@ export default function Home() {
                         }
                         setTimeout(() => {
                           document.getElementById('map-section')?.scrollIntoView({ behavior: 'smooth' })
+                          updateActiveSection('map-section')
                         }, 100)
                       } else {
                         console.log('Dados incompletos:', searchData)
@@ -868,6 +916,7 @@ export default function Home() {
                         }
                         setTimeout(() => {
                           document.getElementById('flights')?.scrollIntoView({ behavior: 'smooth' })
+                          updateActiveSection('flights')
                         }, 100)
                       }}
                       className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium"
@@ -1002,6 +1051,7 @@ export default function Home() {
                             }
                             setTimeout(() => {
                               document.getElementById('hotels')?.scrollIntoView({ behavior: 'smooth' })
+                              updateActiveSection('hotels')
                             }, 100)
                           }}
                           className="px-4 py-2 text-sm bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium"
@@ -1118,6 +1168,7 @@ export default function Home() {
                             }
                             setTimeout(() => {
                               document.getElementById('checkout')?.scrollIntoView({ behavior: 'smooth' })
+                              updateActiveSection('checkout')
                             }, 100)
                           }}
                           className="px-4 py-2 text-sm bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium"
@@ -1140,89 +1191,146 @@ export default function Home() {
             <div className="space-y-12 sm:space-y-16">
               <h2 className="text-3xl sm:text-4xl font-light">Finalizar Reserva</h2>
 
-              <div className="grid lg:grid-cols-2 gap-12 sm:gap-16">
-                <div className="space-y-8">
-                  <div className="p-6 border border-border rounded-lg">
-                    <h3 className="text-xl font-medium mb-4">Resumo da Viagem</h3>
+              {/* Resumo da Viagem - Largura Total */}
+              <div className="w-full">
+                <div className="p-8 border border-border rounded-lg bg-background/50 backdrop-blur-sm">
+                  <h3 className="text-xl font-medium mb-6">Resumo da Viagem</h3>
                     
+                  <div className="grid lg:grid-cols-3 gap-8">
+                    {/* Informações do Voo */}
                     {selectedFlight && (
-                      <div className="space-y-3 mb-6">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Voo</span>
-                          <span className="font-medium">{selectedFlight.airline}</span>
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          <h4 className="font-medium text-sm uppercase tracking-wide text-muted-foreground">Voo Selecionado</h4>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Rota</span>
-                          <span>{searchData.origem} → {searchData.destino}</span>
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-sm text-muted-foreground">Companhia</div>
+                            <div className="font-medium">{selectedFlight.airline}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Voo</div>
+                            <div className="font-medium">{selectedFlight.flight}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Rota</div>
+                            <div className="font-medium">{searchData.origem} → {searchData.destino}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Horário</div>
+                            <div className="font-medium">{selectedFlight.departure} - {selectedFlight.arrival}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Duração</div>
+                            <div className="font-medium">{selectedFlight.duration}</div>
+                          </div>
+                          <div className="pt-2 border-t border-border">
+                            <div className="text-sm text-muted-foreground">Valor</div>
+                            <div className="font-medium text-lg text-green-600">{selectedFlight.price}</div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Data de Ida</span>
-                          <span>{searchData.dataIda}</span>
+                      </div>
+                    )}
+
+                    {/* Informações do Hotel */}
+                    {selectedHotel && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+                          <h4 className="font-medium text-sm uppercase tracking-wide text-muted-foreground">Hotel Selecionado</h4>
+                        </div>
+                        <div className="space-y-3">
+                          <div>
+                            <div className="text-sm text-muted-foreground">Hotel</div>
+                            <div className="font-medium">{selectedHotel.name}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Categoria</div>
+                            <div className="font-medium">{selectedHotel.category}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Localização</div>
+                            <div className="font-medium">{selectedHotel.location}</div>
+                          </div>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Avaliação</div>
+                            <div className="font-medium">{selectedHotel.rating} ⭐</div>
+                          </div>
+                          <div className="pt-2 border-t border-border">
+                            <div className="text-sm text-muted-foreground">Valor por noite</div>
+                            <div className="font-medium text-lg text-green-600">{selectedHotel.price}</div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Resumo das Datas e Total */}
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <h4 className="font-medium text-sm uppercase tracking-wide text-muted-foreground">Detalhes da Viagem</h4>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <div className="text-sm text-muted-foreground">Data de Ida</div>
+                          <div className="font-medium">
+                            {new Date(searchData.dataIda).toLocaleDateString('pt-BR', {
+                              weekday: 'long',
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric'
+                            })}
+                          </div>
                         </div>
                         {searchData.dataVolta && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Data de Volta</span>
-                            <span>{searchData.dataVolta}</span>
+                          <div>
+                            <div className="text-sm text-muted-foreground">Data de Volta</div>
+                            <div className="font-medium">
+                              {new Date(searchData.dataVolta).toLocaleDateString('pt-BR', {
+                                weekday: 'long',
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })}
+                            </div>
                           </div>
                         )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Horário</span>
-                          <span>{selectedFlight.departure} - {selectedFlight.arrival}</span>
+                        <div className="pt-4 border-t border-border">
+                          <div className="bg-muted/30 rounded-lg p-4">
+                            <div className="text-sm text-muted-foreground mb-1">Total da Viagem</div>
+                            <div className="text-2xl font-bold text-foreground">
+                              {selectedFlight && selectedHotel && 
+                                `R$ ${(parseInt(selectedFlight.price.replace('R$ ', '').replace('.', '')) + 
+                                      parseInt(selectedHotel.price.replace('R$ ', ''))).toLocaleString()}`
+                              }
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Voo + Hotel (1 noite)
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center font-medium">
-                          <span>Valor do Voo</span>
-                          <span>{selectedFlight.price}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedHotel && (
-                      <div className="space-y-3 border-t border-border pt-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Hotel</span>
-                          <span className="font-medium">{selectedHotel.name}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Categoria</span>
-                          <span>{selectedHotel.category}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Localização</span>
-                          <span>{selectedHotel.location}</span>
-                        </div>
-                        <div className="flex justify-between items-center font-medium">
-                          <span>Valor do Hotel (1 noite)</span>
-                          <span>{selectedHotel.price}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="border-t border-border pt-4 mt-6">
-                      <div className="flex justify-between items-center text-lg font-medium">
-                        <span>Total</span>
-                        <span>
-                          {selectedFlight && selectedHotel && 
-                            `R$ ${(parseInt(selectedFlight.price.replace('R$ ', '').replace('.', '')) + 
-                                  parseInt(selectedHotel.price.replace('R$ ', ''))).toLocaleString()}`
-                          }
-                        </span>
                       </div>
                     </div>
                   </div>
-                </div>
+                  </div>
+              </div>
 
-                <div className="space-y-8">
-                  <div className="p-6 border border-border rounded-lg">
-                    <h3 className="text-xl font-medium mb-6">Dados do Passageiro</h3>
+              {/* Formulário de Dados do Passageiro - Largura Total */}
+              <div className="w-full">
+                <div className="p-8 border border-border rounded-lg bg-background/50 backdrop-blur-sm">
+                  <h3 className="text-xl font-medium mb-6">Dados do Passageiro</h3>
                     
-                    <div className="space-y-4">
-                      <div className="grid sm:grid-cols-2 gap-4">
+                  <div className="grid lg:grid-cols-2 gap-8">
+                    {/* Coluna da Esquerda */}
+                    <div className="space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-sm text-muted-foreground font-mono">NOME</label>
                           <input
                             type="text"
                             placeholder="Nome completo"
-                            className="w-full p-3 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
+                            className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
                           />
                         </div>
                         <div className="space-y-2">
@@ -1230,7 +1338,7 @@ export default function Home() {
                           <input
                             type="text"
                             placeholder="Sobrenome"
-                            className="w-full p-3 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
+                            className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
                           />
                         </div>
                       </div>
@@ -1240,16 +1348,19 @@ export default function Home() {
                         <input
                           type="email"
                           placeholder="seu.email@exemplo.com"
-                          className="w-full p-3 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
+                          className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
                         />
                       </div>
+                    </div>
 
+                    {/* Coluna da Direita */}
+                    <div className="space-y-6">
                       <div className="space-y-2">
                         <label className="text-sm text-muted-foreground font-mono">TELEFONE</label>
                         <input
                           type="tel"
                           placeholder="(11) 99999-9999"
-                          className="w-full p-3 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
+                          className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
                         />
                       </div>
 
@@ -1258,41 +1369,41 @@ export default function Home() {
                         <input
                           type="text"
                           placeholder="CPF ou Passaporte"
-                          className="w-full p-3 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
+                          className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
                         />
                       </div>
                     </div>
-
-                    <div className="mt-8 space-y-4">
-                      <button 
-                        onClick={() => {
-                          if (showChatbot) {
-                            addChatbotMessage('🎉 Parabéns! Sua reserva foi confirmada com sucesso! Você receberá todos os detalhes por email. Tenha uma viagem incrível! ✈️🌟', 'success', 'reservation-confirmed')
-                          }
-                        }}
-                        className="w-full px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium text-lg"
-                      >
-                        Confirmar Reserva
-                      </button>
-                      
-                      <button 
-                        onClick={resetReservation}
-                        className="w-full px-8 py-3 bg-transparent text-muted-foreground border border-border rounded-lg hover:bg-muted/30 hover:text-foreground transition-colors duration-300 font-medium"
-                      >
-                        Cancelar Reserva
-                      </button>
-                    </div>
-
-                    <div className="mt-4 text-center">
-                      <p className="text-sm text-muted-foreground">
-                        Ao confirmar, você concorda com nossos termos e condições
-                      </p>
-                    </div>
                   </div>
+
+                  <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+                    <button 
+                      onClick={() => {
+                        if (showChatbot) {
+                          addChatbotMessage('🎉 Parabéns! Sua reserva foi confirmada com sucesso! Você receberá todos os detalhes por email. Tenha uma viagem incrível! ✈️🌟', 'success', 'reservation-confirmed')
+                        }
+                      }}
+                      className="flex-1 max-w-sm px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium text-lg"
+                    >
+                      Confirmar Reserva
+                    </button>
+                    
+                    <button 
+                      onClick={resetReservation}
+                      className="flex-1 max-w-sm px-8 py-4 bg-transparent text-muted-foreground border border-border rounded-lg hover:bg-muted/30 hover:text-foreground transition-colors duration-300 font-medium"
+                    >
+                      Cancelar Reserva
+                    </button>
+                  </div>
+
+                  <div className="mt-6 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Ao confirmar, você concorda com nossos termos e condições
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
         )}
 
         <footer className="py-12 sm:py-16 border-t border-border">
