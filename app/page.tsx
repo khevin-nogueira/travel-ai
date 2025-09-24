@@ -9,6 +9,7 @@ import { getDestinationByCode } from "@/data/destinations"
 import { CalendarIcon } from "lucide-react"
 import { format } from "date-fns"
 import { ptBR } from "date-fns/locale"
+// Removido useChat por incompatibilidade da versão
 
 export default function Home() {
   const [isDark, setIsDark] = useState(true)
@@ -32,6 +33,9 @@ export default function Home() {
   const [showHotels, setShowHotels] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
   
+  // Mode states
+  const [isAIMode, setIsAIMode] = useState(false) // false = Assistido, true = IA
+  
   // Chatbot states
   const [showChatbot, setShowChatbot] = useState(false)
   const [chatbotMessages, setChatbotMessages] = useState<Array<{
@@ -49,6 +53,112 @@ export default function Home() {
   const chatMessagesRef = useRef<HTMLDivElement>(null)
   const [messagesSent, setMessagesSent] = useState<Set<string>>(new Set())
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null)
+
+  // Chat IA - Estados manuais
+  const [aiMessages, setAiMessages] = useState<Array<{
+    id: string
+    role: 'user' | 'assistant'
+    content: string
+    timestamp: Date
+  }>>([{
+    id: 'welcome',
+    role: 'assistant',
+    content: 'Olá! Sou a Lívia Assist, sua assistente pessoal de viagem da Sky Travels! ✈️\n\nVou te ajudar a encontrar e reservar a viagem perfeita. Para começar, me conte: para onde você gostaria de viajar? 🌍',
+    timestamp: new Date()
+  }])
+  const [aiInput, setAiInput] = useState('')
+  const [isAILoading, setIsAILoading] = useState(false)
+
+  // Função para enviar mensagem para IA
+  const sendAIMessage = async (message: string) => {
+    if (!message.trim()) return
+
+    // Adicionar mensagem do usuário
+    const userMessage = {
+      id: Date.now().toString(),
+      role: 'user' as const,
+      content: message,
+      timestamp: new Date()
+    }
+    
+    setAiMessages(prev => [...prev, userMessage])
+    setAiInput('')
+    setIsAILoading(true)
+
+    try {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [...aiMessages, userMessage].map(msg => ({
+            role: msg.role,
+            content: msg.content
+          }))
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro na resposta da API')
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('Sem leitor de stream')
+      }
+
+      let assistantMessage = ''
+      const assistantId = (Date.now() + 1).toString()
+      
+      // Adicionar mensagem vazia da assistente para mostrar loading
+      setAiMessages(prev => [...prev, {
+        id: assistantId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date()
+      }])
+
+      // Ler stream
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = new TextDecoder().decode(value)
+        const lines = chunk.split('\n')
+        
+        for (const line of lines) {
+          if (line.startsWith('0:')) {
+            const text = line.slice(2).replace(/"/g, '')
+            assistantMessage += text
+            
+            // Atualizar mensagem da assistente em tempo real
+            setAiMessages(prev => prev.map(msg => 
+              msg.id === assistantId 
+                ? { ...msg, content: assistantMessage }
+                : msg
+            ))
+          }
+        }
+      }
+
+      // Auto-scroll
+      if (chatMessagesRef.current) {
+        chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight
+      }
+
+    } catch (error) {
+      console.error('Erro ao enviar mensagem:', error)
+      setAiMessages(prev => [...prev, {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Desculpe, ocorreu um erro. Tente novamente.',
+        timestamp: new Date()
+      }])
+    } finally {
+      setIsAILoading(false)
+    }
+  }
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark)
@@ -348,6 +458,44 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground relative">
+      {/* Mode Toggle - Top Header */}
+      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
+        <div className="bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsAIMode(false)}
+              className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                !isAIMode 
+                  ? 'bg-foreground text-background shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
+              </svg>
+              Modo Assistido
+            </button>
+            <button
+              onClick={() => {
+                setIsAIMode(true)
+                setShowChatbot(true)
+                setIsChatbotExpanded(true)
+              }}
+              className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
+                isAIMode 
+                  ? 'bg-foreground text-background shadow-sm' 
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+              </svg>
+              Modo IA
+            </button>
+          </div>
+        </div>
+      </div>
+
       <nav className="fixed left-8 top-1/2 -translate-y-1/2 z-10 hidden lg:block">
         <div className="flex flex-col gap-6">
           {/* Seção Inicial */}
@@ -1463,7 +1611,7 @@ export default function Home() {
       </main>
 
       {/* Chatbot Lívia Assist */}
-      {showChatbot && activeSection !== 'intro' && (
+      {showChatbot && (activeSection !== 'intro' || isAIMode) && (
         <div className="fixed top-0 right-0 z-50 h-screen">
           <div className={`bg-background border-l border-border shadow-2xl transition-all duration-300 h-full relative ${
             isChatbotExpanded 
@@ -1519,73 +1667,177 @@ export default function Home() {
                 <div 
                   ref={chatMessagesRef}
                   className="p-4 overflow-y-auto space-y-4"
-                  style={{ height: 'calc(100vh - 140px)' }}
+                  style={{ height: isAIMode ? 'calc(100vh - 180px)' : 'calc(100vh - 140px)' }}
                 >
-                  {chatbotMessages.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground text-sm py-12">
-                      <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
-                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                      <div className="text-base font-medium mb-2 text-foreground">Olá! Sou a Lívia</div>
-                      <div className="mb-4">Sua assistente pessoal de viagem</div>
-                      <div className="text-xs text-muted-foreground/70 max-w-[250px]">
-                        💡 Clique em "Vamos Começar" para iniciarmos sua jornada!
-                        <br />
-                        Vou te guiar em cada passo da sua reserva.
-                      </div>
-                    </div>
-                  ) : (
-                    chatbotMessages.map((message) => (
-                      <div key={message.id} className="flex gap-3 mb-6 animate-fade-in-up">
-                        {/* Avatar da Lívia */}
-                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
-                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  {isAIMode ? (
+                    // Modo IA - Mensagens do useChat
+                    aiMessages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground text-sm py-12">
+                        <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                           </svg>
                         </div>
-                        
-                        {/* Conteúdo da mensagem */}
-                        <div className="flex-1">
-                          <div className="text-sm text-foreground leading-relaxed whitespace-pre-line">
-                            {message.text}
-                            {message.isTyping && (
-                              <span className="inline-block w-2 h-4 bg-foreground ml-1 animate-pulse"></span>
-                            )}
-                          </div>
-                          
-                          {/* Renderizar card de resumo se existir */}
-                          {message.cardData && !message.isTyping && renderSummaryCard(message.cardData)}
-                          
-                          <div className="text-xs text-muted-foreground mt-2">
-                            {message.timestamp.toLocaleTimeString('pt-BR', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
-                            })}
-                          </div>
+                        <div className="text-base font-medium mb-2 text-foreground">Olá! Sou a Lívia</div>
+                        <div className="mb-4">Sua assistente pessoal de viagem</div>
+                        <div className="text-xs text-muted-foreground/70 max-w-[250px]">
+                          💬 Modo IA ativo! Converse comigo naturalmente sobre sua viagem.
                         </div>
                       </div>
-                    ))
+                    ) : (
+                      <>
+                        {aiMessages.map((message: any) => (
+                          <div key={message.id} className="flex gap-3 mb-6 animate-fade-in-up">
+                            {message.role === 'assistant' && (
+                              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                                <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            )}
+                            
+                            <div className={`flex-1 ${message.role === 'user' ? 'text-right' : ''}`}>
+                              <div className={`inline-block p-3 rounded-lg max-w-[85%] ${
+                                message.role === 'user' 
+                                  ? 'bg-foreground text-background ml-auto' 
+                                  : 'bg-muted/30 text-foreground'
+                              }`}>
+                                <div className="text-sm leading-relaxed whitespace-pre-line">
+                                  {message.content}
+                                </div>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {new Date().toLocaleTimeString('pt-BR', { 
+                                  hour: '2-digit', 
+                                  minute: '2-digit' 
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                        
+                        {/* Indicador de digitação */}
+                        {isAILoading && (
+                          <div className="flex gap-3 mb-6">
+                            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                              <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                              </svg>
+                            </div>
+                            <div className="bg-muted/30 text-foreground p-3 rounded-lg">
+                              <div className="flex gap-1">
+                                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                                <div className="w-2 h-2 bg-foreground rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    )
+                  ) : (
+                    // Modo Assistido - Mensagens antigas
+                    chatbotMessages.length === 0 ? (
+                      <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground text-sm py-12">
+                        <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                          <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                          </svg>
+                        </div>
+                        <div className="text-base font-medium mb-2 text-foreground">Olá! Sou a Lívia</div>
+                        <div className="mb-4">Sua assistente pessoal de viagem</div>
+                        <div className="text-xs text-muted-foreground/70 max-w-[250px]">
+                          💡 Clique em "Vamos Começar" para iniciarmos sua jornada!
+                          <br />
+                          Vou te guiar em cada passo da sua reserva.
+                        </div>
+                      </div>
+                    ) : (
+                      chatbotMessages.map((message) => (
+                        <div key={message.id} className="flex gap-3 mb-6 animate-fade-in-up">
+                          {/* Avatar da Lívia */}
+                          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                          
+                          {/* Conteúdo da mensagem */}
+                          <div className="flex-1">
+                            <div className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                              {message.text}
+                              {message.isTyping && (
+                                <span className="inline-block w-2 h-4 bg-foreground ml-1 animate-pulse"></span>
+                              )}
+                            </div>
+                            
+                            {/* Renderizar card de resumo se existir */}
+                            {message.cardData && !message.isTyping && renderSummaryCard(message.cardData)}
+                            
+                            <div className="text-xs text-muted-foreground mt-2">
+                              {message.timestamp.toLocaleTimeString('pt-BR', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )
                   )}
                 </div>
 
                 {/* Rodapé do Chatbot */}
-                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-background">
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
-                      Online
+                <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-background">
+                  {/* Input para Modo IA */}
+                  {isAIMode && (
+                    <form onSubmit={(e) => {
+                      e.preventDefault()
+                      sendAIMessage(aiInput)
+                    }} className="p-4 border-b border-border">
+                      <div className="flex gap-2">
+                        <input
+                          value={aiInput}
+                          onChange={(e) => setAiInput(e.target.value)}
+                          placeholder="Digite sua mensagem..."
+                          className="flex-1 p-2 text-sm bg-muted/30 border border-border rounded-lg text-foreground placeholder-muted-foreground focus:border-muted-foreground/50 transition-colors"
+                          disabled={isAILoading}
+                        />
+                        <button
+                          type="submit"
+                          disabled={isAILoading || !aiInput.trim()}
+                          className="p-2 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors disabled:opacity-50"
+                        >
+                          {isAILoading ? (
+                            <div className="w-4 h-4 border-2 border-background border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10.293 15.707a1 1 0 010-1.414L14.586 10l-4.293-4.293a1 1 0 111.414-1.414l5 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </form>
+                  )}
+                  
+                  {/* Status Bar */}
+                  <div className="p-3">
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                        <span>{isAIMode ? 'Modo IA Ativo' : 'Modo Assistido'}</span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setShowChatbot(false)
+                          setIsAIMode(false)
+                        }}
+                        className="hover:text-foreground transition-colors"
+                      >
+                        Fechar
+                      </button>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setShowChatbot(false)
-                      }}
-                      className="hover:text-foreground transition-colors"
-                    >
-                      Fechar
-                    </button>
                   </div>
                 </div>
               </>
