@@ -23,6 +23,18 @@ export default function Home() {
   const [showFlights, setShowFlights] = useState(false)
   const [showHotels, setShowHotels] = useState(false)
   const [showCheckout, setShowCheckout] = useState(false)
+  
+  // Chatbot states
+  const [showChatbot, setShowChatbot] = useState(false)
+  const [chatbotMessages, setChatbotMessages] = useState<Array<{
+    id: string
+    text: string
+    timestamp: Date
+    type: 'info' | 'success' | 'guidance'
+  }>>([])
+  const [isChatbotExpanded, setIsChatbotExpanded] = useState(true)
+  const chatMessagesRef = useRef<HTMLDivElement>(null)
+  const [messagesSent, setMessagesSent] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark)
@@ -48,8 +60,74 @@ export default function Home() {
     return () => observer.disconnect()
   }, [])
 
+  // Auto-scroll das mensagens do chatbot
+  useEffect(() => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight
+    }
+  }, [chatbotMessages])
+
+  // Mensagem do checkout - disparada apenas uma vez quando showCheckout muda para true
+  useEffect(() => {
+    if (showCheckout && showChatbot) {
+      setTimeout(() => {
+        addChatbotMessage('Estamos quase lá! Agora preciso que você preencha seus dados pessoais para finalizar a reserva. Preencha todos os campos obrigatórios! 📋', 'info', 'checkout-message')
+      }, 500)
+    }
+  }, [showCheckout, showChatbot])
+
   const toggleTheme = () => {
     setIsDark(!isDark)
+  }
+
+  const addChatbotMessage = (text: string, type: 'info' | 'success' | 'guidance' = 'info', messageKey?: string) => {
+    // Se foi fornecida uma chave e já foi enviada, não enviar novamente
+    if (messageKey && messagesSent.has(messageKey)) {
+      return
+    }
+    
+    const newMessage = {
+      id: Date.now().toString(),
+      text,
+      timestamp: new Date(),
+      type
+    }
+    setChatbotMessages(prev => [...prev, newMessage])
+    
+    // Marcar mensagem como enviada se foi fornecida uma chave
+    if (messageKey) {
+      setMessagesSent(prev => new Set([...prev, messageKey]))
+    }
+  }
+
+  const resetReservation = () => {
+    // Reset todos os estados
+    setSearchData({
+      origem: "",
+      destino: "",
+      dataIda: "",
+      dataVolta: ""
+    })
+    setSelectedFlight(null)
+    setSelectedHotel(null)
+    setShowMap(false)
+    setShowFlights(false)
+    setShowHotels(false)
+    setShowCheckout(false)
+    
+    // Reset do chatbot
+    setChatbotMessages([])
+    setMessagesSent(new Set())
+    
+    // Mensagem de cancelamento
+    setTimeout(() => {
+      addChatbotMessage('Reserva cancelada! Não se preocupe, você pode começar uma nova busca a qualquer momento. Estou aqui para ajudar! 😊', 'info')
+    }, 300)
+    
+    // Scroll para o topo
+    setTimeout(() => {
+      document.getElementById('intro')?.scrollIntoView({ behavior: 'smooth' })
+    }, 500)
   }
 
   return (
@@ -107,6 +185,9 @@ export default function Home() {
             <div className="lg:col-span-2 flex flex-col justify-end space-y-6 sm:space-y-8 mt-8 lg:mt-0">
             <button
               onClick={() => {
+                setShowChatbot(true)
+                addChatbotMessage('Olá! Sou a Lívia Assist, sua assistente pessoal de viagem. Vou te ajudar durante todo o processo de reserva! 🌟', 'info', 'welcome-message')
+                addChatbotMessage('Para começar, você precisa preencher os campos de origem, destino e data de ida. Vamos começar?', 'guidance', 'start-guidance')
                 document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' })
               }}
               className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-all duration-300 font-medium text-lg group"
@@ -149,7 +230,12 @@ export default function Home() {
                     label="Origem"
                     placeholder="De onde você parte?"
                     value={searchData.origem}
-                    onValueChange={(value) => setSearchData({ ...searchData, origem: value })}
+                    onValueChange={(value) => {
+                      setSearchData({ ...searchData, origem: value })
+                      if (value && showChatbot) {
+                        addChatbotMessage(`Perfeito! Você selecionou "${value}" como origem. Agora selecione seu destino! ✈️`, 'success')
+                      }
+                    }}
                   />
 
                   {/* Linha 2: Destino */}
@@ -157,7 +243,12 @@ export default function Home() {
                     label="Destino"
                     placeholder="Para onde você vai?"
                     value={searchData.destino}
-                    onValueChange={(value) => setSearchData({ ...searchData, destino: value })}
+                    onValueChange={(value) => {
+                      setSearchData({ ...searchData, destino: value })
+                      if (value && showChatbot) {
+                        addChatbotMessage(`Ótima escolha! "${value}" é um destino incrível! 🌍 Agora selecione a data de ida.`, 'success')
+                      }
+                    }}
                   />
 
                   {/* Linha 3: Datas lado a lado */}
@@ -167,7 +258,12 @@ export default function Home() {
                       <input
                         type="date"
                         value={searchData.dataIda}
-                        onChange={(e) => setSearchData({ ...searchData, dataIda: e.target.value })}
+                        onChange={(e) => {
+                          setSearchData({ ...searchData, dataIda: e.target.value })
+                          if (e.target.value && showChatbot) {
+                            addChatbotMessage(`Data de ida confirmada! 📅 Se quiser, pode adicionar uma data de volta também.`, 'success')
+                          }
+                        }}
                         className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
                       />
                     </div>
@@ -176,7 +272,12 @@ export default function Home() {
                       <input
                         type="date"
                         value={searchData.dataVolta}
-                        onChange={(e) => setSearchData({ ...searchData, dataVolta: e.target.value })}
+                        onChange={(e) => {
+                          setSearchData({ ...searchData, dataVolta: e.target.value })
+                          if (e.target.value && showChatbot) {
+                            addChatbotMessage(`Perfeito! Data de volta selecionada. Agora você pode buscar os voos! 🎯`, 'success')
+                          }
+                        }}
                         className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
                       />
                     </div>
@@ -190,11 +291,17 @@ export default function Home() {
                       if (searchData.origem && searchData.destino && searchData.dataIda) {
                         console.log('Mostrando mapa...')
                         setShowMap(true)
+                        if (showChatbot) {
+                          addChatbotMessage('Excelente! Estou processando sua busca e mostrando a rota no mapa. Em seguida, vou mostrar os voos disponíveis! 🗺️', 'info', 'search-processing')
+                        }
                         setTimeout(() => {
                           document.getElementById('map-section')?.scrollIntoView({ behavior: 'smooth' })
                         }, 100)
                       } else {
                         console.log('Dados incompletos:', searchData)
+                        if (showChatbot) {
+                          addChatbotMessage('Ops! Você precisa preencher a origem, destino e data de ida antes de buscar voos. ⚠️', 'guidance', 'search-validation')
+                        }
                       }
                     }}
                     disabled={!searchData.origem || !searchData.destino || !searchData.dataIda}
@@ -387,6 +494,9 @@ export default function Home() {
                     <button
                       onClick={() => {
                         setShowFlights(true)
+                        if (showChatbot) {
+                          addChatbotMessage('Ótimo! Agora vou mostrar os voos disponíveis para sua rota. Analise as opções e selecione o que mais combina com você! ✈️', 'info', 'show-flights')
+                        }
                         setTimeout(() => {
                           document.getElementById('flights')?.scrollIntoView({ behavior: 'smooth' })
                         }, 100)
@@ -506,6 +616,9 @@ export default function Home() {
                           onClick={() => {
                             setSelectedFlight(flight)
                             setShowHotels(true)
+                            if (showChatbot) {
+                              addChatbotMessage(`Excelente escolha! Você selecionou o voo ${flight.airline} (${flight.flight}) por ${flight.price}. Agora vamos escolher sua hospedagem! 🏨`, 'success')
+                            }
                             setTimeout(() => {
                               document.getElementById('hotels')?.scrollIntoView({ behavior: 'smooth' })
                             }, 100)
@@ -608,6 +721,9 @@ export default function Home() {
                           onClick={() => {
                             setSelectedHotel(hotel)
                             setShowCheckout(true)
+                            if (showChatbot) {
+                              addChatbotMessage(`Perfeita escolha! Você selecionou o ${hotel.name} (${hotel.category}) por ${hotel.price}/noite. Agora vamos finalizar sua reserva! 🎉`, 'success')
+                            }
                             setTimeout(() => {
                               document.getElementById('checkout')?.scrollIntoView({ behavior: 'smooth' })
                             }, 100)
@@ -626,7 +742,9 @@ export default function Home() {
         )}
 
         {showCheckout && (
-          <section id="checkout" ref={(el) => { sectionsRef.current[5] = el }} className="py-20 sm:py-32 animate-fade-in-up">
+          <section id="checkout" ref={(el) => { 
+            sectionsRef.current[5] = el
+          }} className="py-20 sm:py-32 animate-fade-in-up">
             <div className="space-y-12 sm:space-y-16">
               <h2 className="text-3xl sm:text-4xl font-light">Finalizar Reserva</h2>
 
@@ -753,9 +871,23 @@ export default function Home() {
                       </div>
                     </div>
 
-                    <div className="mt-8">
-                      <button className="w-full px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium text-lg">
+                    <div className="mt-8 space-y-4">
+                      <button 
+                        onClick={() => {
+                          if (showChatbot) {
+                            addChatbotMessage('🎉 Parabéns! Sua reserva foi confirmada com sucesso! Você receberá todos os detalhes por email. Tenha uma viagem incrível! ✈️🌟', 'success')
+                          }
+                        }}
+                        className="w-full px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium text-lg"
+                      >
                         Confirmar Reserva
+                      </button>
+                      
+                      <button 
+                        onClick={resetReservation}
+                        className="w-full px-8 py-3 bg-transparent text-muted-foreground border border-border rounded-lg hover:bg-muted/30 hover:text-foreground transition-colors duration-300 font-medium"
+                      >
+                        Cancelar Reserva
                       </button>
                     </div>
 
@@ -826,6 +958,112 @@ export default function Home() {
           </div>
         </footer>
       </main>
+
+      {/* Chatbot Lívia Assist */}
+      {showChatbot && (
+        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
+          <div className={`bg-background border border-border rounded-2xl shadow-2xl transition-all duration-300 ${
+            isChatbotExpanded 
+              ? 'w-80 sm:w-96 h-[calc(100vh-8rem)] max-h-[600px]' 
+              : 'w-80 sm:w-96 h-16'
+          }`}>
+            {/* Cabeçalho do Chatbot */}
+            <div 
+              className="flex items-center justify-between p-4 border-b border-border cursor-pointer"
+              onClick={() => setIsChatbotExpanded(!isChatbotExpanded)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-medium text-sm">Lívia Assist</div>
+                  <div className="text-xs text-muted-foreground">Assistente de Viagem</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <svg 
+                  className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${
+                    isChatbotExpanded ? 'rotate-180' : ''
+                  }`} 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+
+            {/* Corpo do Chatbot */}
+            {isChatbotExpanded && (
+              <>
+                {/* Área de Mensagens */}
+                <div 
+                  ref={chatMessagesRef}
+                  className="flex-1 p-4 overflow-y-auto space-y-4"
+                  style={{ height: 'calc(100% - 120px)' }}
+                >
+                  {chatbotMessages.length === 0 ? (
+                    <div className="text-center text-muted-foreground text-sm py-12">
+                      <div className="mb-4 text-4xl">👋</div>
+                      <div className="text-base font-medium mb-2">Olá! Sou a Lívia</div>
+                      <div className="mb-4">Sua assistente pessoal de viagem</div>
+                      <div className="text-xs bg-muted/50 rounded-lg p-3 mx-4">
+                        💡 Clique em "Vamos Começar" para iniciarmos sua jornada!
+                        <br />
+                        Vou te guiar em cada passo da sua reserva.
+                      </div>
+                    </div>
+                  ) : (
+                    chatbotMessages.map((message) => (
+                      <div key={message.id} className="animate-fade-in-up">
+                        <div className={`max-w-[90%] p-4 rounded-lg text-sm leading-relaxed ${
+                          message.type === 'success' 
+                            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-l-4 border-green-500'
+                            : message.type === 'guidance'
+                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-l-4 border-blue-500'
+                            : 'bg-muted text-muted-foreground border-l-4 border-muted-foreground'
+                        }`}>
+                          {message.text}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-2 ml-2">
+                          {message.timestamp.toLocaleTimeString('pt-BR', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Rodapé do Chatbot */}
+                <div className="p-4 border-t border-border">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="flex items-center gap-1">
+                      <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+                      Online
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowChatbot(false)
+                      }}
+                      className="hover:text-foreground transition-colors"
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="fixed bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-background via-background/80 to-transparent pointer-events-none"></div>
     </div>
