@@ -2,8 +2,13 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DestinationAutocomplete } from "@/components/destination-autocomplete"
 import { getDestinationByCode } from "@/data/destinations"
+import { CalendarIcon } from "lucide-react"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 export default function Home() {
   const [isDark, setIsDark] = useState(true)
@@ -17,6 +22,8 @@ export default function Home() {
     dataIda: "",
     dataVolta: ""
   })
+  const [departureDate, setDepartureDate] = useState<Date | undefined>(undefined)
+  const [returnDate, setReturnDate] = useState<Date | undefined>(undefined)
   const [selectedFlight, setSelectedFlight] = useState<any>(null)
   const [selectedHotel, setSelectedHotel] = useState<any>(null)
   const [showMap, setShowMap] = useState(false)
@@ -31,10 +38,16 @@ export default function Home() {
     text: string
     timestamp: Date
     type: 'info' | 'success' | 'guidance'
+    isTyping?: boolean
+    cardData?: {
+      type: 'destination' | 'route' | 'flight' | 'hotel'
+      data: any
+    }
   }>>([])
   const [isChatbotExpanded, setIsChatbotExpanded] = useState(true)
   const chatMessagesRef = useRef<HTMLDivElement>(null)
   const [messagesSent, setMessagesSent] = useState<Set<string>>(new Set())
+  const [typingMessageId, setTypingMessageId] = useState<string | null>(null)
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark)
@@ -80,19 +93,49 @@ export default function Home() {
     setIsDark(!isDark)
   }
 
-  const addChatbotMessage = (text: string, type: 'info' | 'success' | 'guidance' = 'info', messageKey?: string) => {
+  const addChatbotMessage = (text: string, type: 'info' | 'success' | 'guidance' = 'info', messageKey?: string, cardData?: any) => {
     // Se foi fornecida uma chave e já foi enviada, não enviar novamente
     if (messageKey && messagesSent.has(messageKey)) {
       return
     }
     
+    const messageId = Date.now().toString()
     const newMessage = {
-      id: Date.now().toString(),
-      text,
+      id: messageId,
+      text: '',
       timestamp: new Date(),
-      type
+      type,
+      isTyping: true,
+      cardData
     }
+    
     setChatbotMessages(prev => [...prev, newMessage])
+    setTypingMessageId(messageId)
+    
+    // Simular digitação
+    let currentIndex = 0
+    const typingInterval = setInterval(() => {
+      if (currentIndex <= text.length) {
+        setChatbotMessages(prev => 
+          prev.map(msg => 
+            msg.id === messageId 
+              ? { ...msg, text: text.slice(0, currentIndex) }
+              : msg
+          )
+        )
+        currentIndex++
+      } else {
+        clearInterval(typingInterval)
+        setChatbotMessages(prev => 
+          prev.map(msg => 
+            msg.id === messageId 
+              ? { ...msg, isTyping: false }
+              : msg
+          )
+        )
+        setTypingMessageId(null)
+      }
+    }, 15) // Velocidade da digitação
     
     // Marcar mensagem como enviada se foi fornecida uma chave
     if (messageKey) {
@@ -108,6 +151,8 @@ export default function Home() {
       dataIda: "",
       dataVolta: ""
     })
+    setDepartureDate(undefined)
+    setReturnDate(undefined)
     setSelectedFlight(null)
     setSelectedHotel(null)
     setShowMap(false)
@@ -118,6 +163,7 @@ export default function Home() {
     // Reset do chatbot
     setChatbotMessages([])
     setMessagesSent(new Set())
+    setTypingMessageId(null)
     
     // Mensagem de cancelamento
     setTimeout(() => {
@@ -130,20 +176,239 @@ export default function Home() {
     }, 500)
   }
 
+  // Componente para renderizar cards de resumo
+  const renderSummaryCard = (cardData: any) => {
+    if (!cardData) return null
+
+    switch (cardData.type) {
+      case 'destination':
+        return (
+          <div className="bg-muted/30 border border-border rounded-lg p-4 mt-3 max-w-[280px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <span className="text-xs font-medium text-muted-foreground">DESTINO CONFIRMADO</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Origem:</span>
+                <span className="font-medium">{cardData.data.origem}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Destino:</span>
+                <span className="font-medium">{cardData.data.destino}</span>
+              </div>
+              {cardData.data.dataIda && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Data de ida:</span>
+                  <span className="font-medium">
+                    {new Date(cardData.data.dataIda).toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+              )}
+              {cardData.data.dataVolta && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Data de volta:</span>
+                  <span className="font-medium">
+                    {new Date(cardData.data.dataVolta).toLocaleDateString('pt-BR')}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+
+      case 'route':
+        return (
+          <div className="bg-muted/30 border border-border rounded-lg p-4 mt-3 max-w-[280px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-xs font-medium text-muted-foreground">ROTA CONFIRMADA</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Rota:</span>
+                <span className="font-medium">{cardData.data.origem} → {cardData.data.destino}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Distância:</span>
+                <span className="font-medium">{cardData.data.distancia}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Tempo:</span>
+                <span className="font-medium">{cardData.data.tempo}</span>
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'flight':
+        return (
+          <div className="bg-muted/30 border border-border rounded-lg p-4 mt-3 max-w-[280px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+              <span className="text-xs font-medium text-muted-foreground">VOO SELECIONADO</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Companhia:</span>
+                <span className="font-medium">{cardData.data.airline}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Voo:</span>
+                <span className="font-medium">{cardData.data.flight}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Horário:</span>
+                <span className="font-medium">{cardData.data.departure} - {cardData.data.arrival}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Preço:</span>
+                <span className="font-medium text-green-600">{cardData.data.price}</span>
+              </div>
+            </div>
+          </div>
+        )
+
+      case 'hotel':
+        return (
+          <div className="bg-muted/30 border border-border rounded-lg p-4 mt-3 max-w-[280px]">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
+              <span className="text-xs font-medium text-muted-foreground">HOTEL SELECIONADO</span>
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Hotel:</span>
+                <span className="font-medium">{cardData.data.name}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Categoria:</span>
+                <span className="font-medium">{cardData.data.category}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Localização:</span>
+                <span className="font-medium">{cardData.data.location}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Preço:</span>
+                <span className="font-medium text-green-600">{cardData.data.price}/noite</span>
+              </div>
+            </div>
+          </div>
+        )
+
+      default:
+        return null
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground relative">
       <nav className="fixed left-8 top-1/2 -translate-y-1/2 z-10 hidden lg:block">
-        <div className="flex flex-col gap-4">
-          {["intro", "search", "map-section", "flights", "hotels", "checkout"].map((section) => (
+        <div className="flex flex-col gap-6">
+          {/* Seção Inicial */}
+          <div className="flex items-center gap-4">
             <button
-              key={section}
-              onClick={() => document.getElementById(section)?.scrollIntoView({ behavior: "smooth" })}
-              className={`w-2 h-8 rounded-full transition-all duration-500 ${
-                activeSection === section ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+              onClick={() => document.getElementById('intro')?.scrollIntoView({ behavior: "smooth" })}
+              className={`w-3 h-8 rounded-full transition-all duration-500 ${
+                activeSection === 'intro' ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
               }`}
-              aria-label={`Navigate to ${section}`}
+              aria-label="Navigate to intro"
             />
-          ))}
+            <span className={`text-sm font-medium transition-opacity duration-500 ${
+              activeSection === 'intro' ? 'text-foreground' : 'text-muted-foreground/70'
+            }`}>
+              Início
+            </span>
+          </div>
+
+          {/* Busca */}
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => document.getElementById('search')?.scrollIntoView({ behavior: "smooth" })}
+              className={`w-3 h-8 rounded-full transition-all duration-500 ${
+                activeSection === 'search' ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+              }`}
+              aria-label="Navigate to search"
+            />
+            <span className={`text-sm font-medium transition-opacity duration-500 ${
+              activeSection === 'search' ? 'text-foreground' : 'text-muted-foreground/70'
+            }`}>
+              Destino
+            </span>
+          </div>
+
+          {/* Mapa - só aparece quando showMap é true */}
+          {showMap && (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => document.getElementById('map-section')?.scrollIntoView({ behavior: "smooth" })}
+                className={`w-3 h-8 rounded-full transition-all duration-500 ${
+                  activeSection === 'map-section' ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                }`}
+                aria-label="Navigate to map"
+              />
+              <span className={`text-sm font-medium transition-opacity duration-500 ${
+                activeSection === 'map-section' ? 'text-foreground' : 'text-muted-foreground/70'
+              }`}>
+                Rota
+              </span>
+            </div>
+          )}
+
+          {/* Voos - só aparece quando showFlights é true */}
+          {showFlights && (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => document.getElementById('flights')?.scrollIntoView({ behavior: "smooth" })}
+                className={`w-3 h-8 rounded-full transition-all duration-500 ${
+                  activeSection === 'flights' ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                }`}
+                aria-label="Navigate to flights"
+              />
+              <span className={`text-sm font-medium transition-opacity duration-500 ${
+                activeSection === 'flights' ? 'text-foreground' : 'text-muted-foreground/70'
+              }`}>
+                Voos Disponíveis
+              </span>
+            </div>
+          )}
+
+          {/* Hotéis - só aparece quando showHotels é true */}
+          {showHotels && (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => document.getElementById('hotels')?.scrollIntoView({ behavior: "smooth" })}
+                className={`w-3 h-8 rounded-full transition-all duration-500 ${
+                  activeSection === 'hotels' ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                }`}
+                aria-label="Navigate to hotels"
+              />
+              <span className={`text-sm font-medium transition-opacity duration-500 ${
+                activeSection === 'hotels' ? 'text-foreground' : 'text-muted-foreground/70'
+              }`}>
+                Hotéis Disponíveis
+              </span>
+            </div>
+          )}
+
+          {/* Checkout - só aparece quando showCheckout é true */}
+          {showCheckout && (
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => document.getElementById('checkout')?.scrollIntoView({ behavior: "smooth" })}
+                className={`w-3 h-8 rounded-full transition-all duration-500 ${
+                  activeSection === 'checkout' ? "bg-foreground" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                }`}
+                aria-label="Navigate to checkout"
+              />
+              <span className={`text-sm font-medium transition-opacity duration-500 ${
+                activeSection === 'checkout' ? 'text-foreground' : 'text-muted-foreground/70'
+              }`}>
+                Checkout
+              </span>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -186,8 +451,7 @@ export default function Home() {
             <button
               onClick={() => {
                 setShowChatbot(true)
-                addChatbotMessage('Olá! Sou a Lívia Assist, sua assistente pessoal de viagem. Vou te ajudar durante todo o processo de reserva! 🌟', 'info', 'welcome-message')
-                addChatbotMessage('Para começar, você precisa preencher os campos de origem, destino e data de ida. Vamos começar?', 'guidance', 'start-guidance')
+                addChatbotMessage('Olá! Sou a Lívia Assist, sua assistente pessoal de viagem. Vou te ajudar durante todo o processo de reserva! 🌟\n\nPara começar, você precisa preencher os campos de origem, destino e data de ida. Vamos começar?', 'info', 'welcome-start-message')
                 document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' })
               }}
               className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-all duration-300 font-medium text-lg group"
@@ -233,7 +497,7 @@ export default function Home() {
                     onValueChange={(value) => {
                       setSearchData({ ...searchData, origem: value })
                       if (value && showChatbot) {
-                        addChatbotMessage(`Perfeito! Você selecionou "${value}" como origem. Agora selecione seu destino! ✈️`, 'success')
+                        addChatbotMessage(`Perfeito! Você selecionou "${value}" como origem. Agora selecione seu destino! ✈️`, 'success', `origem-selected-${value}`)
                       }
                     }}
                   />
@@ -246,7 +510,7 @@ export default function Home() {
                     onValueChange={(value) => {
                       setSearchData({ ...searchData, destino: value })
                       if (value && showChatbot) {
-                        addChatbotMessage(`Ótima escolha! "${value}" é um destino incrível! 🌍 Agora selecione a data de ida.`, 'success')
+                        addChatbotMessage(`Ótima escolha! "${value}" é um destino incrível! 🌍 Agora selecione a data de ida.`, 'success', `destino-selected-${value}`)
                       }
                     }}
                   />
@@ -255,31 +519,109 @@ export default function Home() {
                   <div className="grid grid-cols-2 gap-6">
                     <div className="space-y-2">
                       <label className="text-sm text-muted-foreground font-mono">DATA DE IDA</label>
-                      <input
-                        type="date"
-                        value={searchData.dataIda}
-                        onChange={(e) => {
-                          setSearchData({ ...searchData, dataIda: e.target.value })
-                          if (e.target.value && showChatbot) {
-                            addChatbotMessage(`Data de ida confirmada! 📅 Se quiser, pode adicionar uma data de volta também.`, 'success')
-                          }
-                        }}
-                        className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="w-full p-4 bg-background border border-border rounded-lg text-foreground hover:border-muted-foreground/50 transition-colors flex items-center justify-between"
+                          >
+                            <span className={departureDate ? "text-foreground" : "text-muted-foreground"}>
+                              {departureDate 
+                                ? format(departureDate, "PPP", { locale: ptBR })
+                                : "Selecione a data de ida"
+                              }
+                            </span>
+                            <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-background" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={departureDate}
+                            onSelect={(date) => {
+                              setDepartureDate(date)
+                              if (date) {
+                                const dateString = format(date, "yyyy-MM-dd")
+                                setSearchData({ ...searchData, dataIda: dateString })
+                                if (showChatbot) {
+                                  // Se já temos origem e destino, mostrar card de resumo
+                                  if (searchData.origem && searchData.destino) {
+                                    const destinationCard = {
+                                      type: 'destination',
+                                      data: {
+                                        origem: searchData.origem,
+                                        destino: searchData.destino,
+                                        dataIda: dateString,
+                                        dataVolta: searchData.dataVolta
+                                      }
+                                    }
+                                    addChatbotMessage(`Data de ida confirmada! 📅 Se quiser, pode adicionar uma data de volta também.`, 'success', `data-ida-${dateString}`, destinationCard)
+                                  } else {
+                                    addChatbotMessage(`Data de ida confirmada! 📅 Se quiser, pode adicionar uma data de volta também.`, 'success', `data-ida-${dateString}`)
+                                  }
+                                }
+                                // Se a data de volta for anterior à nova data de ida, limpa ela
+                                if (returnDate && returnDate < date) {
+                                  setReturnDate(undefined)
+                                  setSearchData(prev => ({ ...prev, dataVolta: "" }))
+                                }
+                              }
+                            }}
+                            disabled={(date) => date < new Date()}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div className="space-y-2">
                       <label className="text-sm text-muted-foreground font-mono">DATA DE VOLTA</label>
-                      <input
-                        type="date"
-                        value={searchData.dataVolta}
-                        onChange={(e) => {
-                          setSearchData({ ...searchData, dataVolta: e.target.value })
-                          if (e.target.value && showChatbot) {
-                            addChatbotMessage(`Perfeito! Data de volta selecionada. Agora você pode buscar os voos! 🎯`, 'success')
-                          }
-                        }}
-                        className="w-full p-4 bg-background border border-border rounded-lg text-foreground focus:border-muted-foreground/50 transition-colors"
-                      />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button
+                            className="w-full p-4 bg-background border border-border rounded-lg text-foreground hover:border-muted-foreground/50 transition-colors flex items-center justify-between"
+                            disabled={!departureDate}
+                          >
+                            <span className={returnDate ? "text-foreground" : "text-muted-foreground"}>
+                              {returnDate 
+                                ? format(returnDate, "PPP", { locale: ptBR })
+                                : departureDate 
+                                  ? "Selecione a data de volta (opcional)"
+                                  : "Primeiro selecione a data de ida"
+                              }
+                            </span>
+                            <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0 bg-background" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={returnDate}
+                            onSelect={(date) => {
+                              setReturnDate(date)
+                              if (date) {
+                                const dateString = format(date, "yyyy-MM-dd")
+                                setSearchData({ ...searchData, dataVolta: dateString })
+                                if (showChatbot) {
+                                  // Adicionar card de resumo do destino completo
+                                  const destinationCard = {
+                                    type: 'destination',
+                                    data: {
+                                      origem: searchData.origem,
+                                      destino: searchData.destino,
+                                      dataIda: searchData.dataIda,
+                                      dataVolta: dateString
+                                    }
+                                  }
+                                  addChatbotMessage(`Perfeito! Data de volta selecionada. Agora você pode buscar os voos! 🎯`, 'success', `data-volta-${dateString}`, destinationCard)
+                                }
+                              } else {
+                                setSearchData({ ...searchData, dataVolta: "" })
+                              }
+                            }}
+                            disabled={(date) => !departureDate || date < departureDate}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                   </div>
                 </div>
@@ -495,7 +837,34 @@ export default function Home() {
                       onClick={() => {
                         setShowFlights(true)
                         if (showChatbot) {
-                          addChatbotMessage('Ótimo! Agora vou mostrar os voos disponíveis para sua rota. Analise as opções e selecione o que mais combina com você! ✈️', 'info', 'show-flights')
+                          // Calcular dados da rota
+                          const origem = getDestinationByCode(searchData.origem)
+                          const destino = getDestinationByCode(searchData.destino)
+                          let distancia = '8.500 km'
+                          let tempo = '11h 20m'
+                          
+                          if (origem && destino) {
+                            const distance = Math.round(Math.sqrt(
+                              Math.pow(destino.coordinates.lat - origem.coordinates.lat, 2) + 
+                              Math.pow(destino.coordinates.lng - origem.coordinates.lng, 2)
+                            ) * 111)
+                            distancia = `${distance.toLocaleString()} km`
+                            
+                            const hours = Math.floor(distance / 800) + 8
+                            const minutes = Math.round((distance / 800 % 1) * 60)
+                            tempo = `${hours}h ${minutes}m`
+                          }
+                          
+                          const routeCard = {
+                            type: 'route',
+                            data: {
+                              origem: searchData.origem,
+                              destino: searchData.destino,
+                              distancia,
+                              tempo
+                            }
+                          }
+                          addChatbotMessage('Ótimo! Agora vou mostrar os voos disponíveis para sua rota. Analise as opções e selecione o que mais combina com você! ✈️', 'info', 'show-flights', routeCard)
                         }
                         setTimeout(() => {
                           document.getElementById('flights')?.scrollIntoView({ behavior: 'smooth' })
@@ -617,7 +986,19 @@ export default function Home() {
                             setSelectedFlight(flight)
                             setShowHotels(true)
                             if (showChatbot) {
-                              addChatbotMessage(`Excelente escolha! Você selecionou o voo ${flight.airline} (${flight.flight}) por ${flight.price}. Agora vamos escolher sua hospedagem! 🏨`, 'success')
+                              const flightCard = {
+                                type: 'flight',
+                                data: {
+                                  airline: flight.airline,
+                                  flight: flight.flight,
+                                  departure: flight.departure,
+                                  arrival: flight.arrival,
+                                  price: flight.price,
+                                  class: flight.class,
+                                  duration: flight.duration
+                                }
+                              }
+                              addChatbotMessage(`Excelente escolha! Você selecionou o voo ${flight.airline} (${flight.flight}) por ${flight.price}. Agora vamos escolher sua hospedagem! 🏨`, 'success', `flight-selected-${flight.flight}`, flightCard)
                             }
                             setTimeout(() => {
                               document.getElementById('hotels')?.scrollIntoView({ behavior: 'smooth' })
@@ -722,7 +1103,18 @@ export default function Home() {
                             setSelectedHotel(hotel)
                             setShowCheckout(true)
                             if (showChatbot) {
-                              addChatbotMessage(`Perfeita escolha! Você selecionou o ${hotel.name} (${hotel.category}) por ${hotel.price}/noite. Agora vamos finalizar sua reserva! 🎉`, 'success')
+                              const hotelCard = {
+                                type: 'hotel',
+                                data: {
+                                  name: hotel.name,
+                                  category: hotel.category,
+                                  location: hotel.location,
+                                  price: hotel.price,
+                                  rating: hotel.rating,
+                                  amenities: hotel.amenities
+                                }
+                              }
+                              addChatbotMessage(`Perfeita escolha! Você selecionou o ${hotel.name} (${hotel.category}) por ${hotel.price}/noite. Agora vamos finalizar sua reserva! 🎉`, 'success', `hotel-selected-${hotel.name}`, hotelCard)
                             }
                             setTimeout(() => {
                               document.getElementById('checkout')?.scrollIntoView({ behavior: 'smooth' })
@@ -875,7 +1267,7 @@ export default function Home() {
                       <button 
                         onClick={() => {
                           if (showChatbot) {
-                            addChatbotMessage('🎉 Parabéns! Sua reserva foi confirmada com sucesso! Você receberá todos os detalhes por email. Tenha uma viagem incrível! ✈️🌟', 'success')
+                            addChatbotMessage('🎉 Parabéns! Sua reserva foi confirmada com sucesso! Você receberá todos os detalhes por email. Tenha uma viagem incrível! ✈️🌟', 'success', 'reservation-confirmed')
                           }
                         }}
                         className="w-full px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-colors duration-300 font-medium text-lg"
@@ -960,42 +1352,53 @@ export default function Home() {
       </main>
 
       {/* Chatbot Lívia Assist */}
-      {showChatbot && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
-          <div className={`bg-background border border-border rounded-2xl shadow-2xl transition-all duration-300 ${
+      {showChatbot && activeSection !== 'intro' && (
+        <div className="fixed top-0 right-0 z-50 h-screen">
+          <div className={`bg-background border-l border-border shadow-2xl transition-all duration-300 h-full relative ${
             isChatbotExpanded 
-              ? 'w-80 sm:w-96 h-[calc(100vh-8rem)] max-h-[600px]' 
-              : 'w-80 sm:w-96 h-16'
+              ? 'w-80 sm:w-96' 
+              : 'w-16'
           }`}>
             {/* Cabeçalho do Chatbot */}
             <div 
               className="flex items-center justify-between p-4 border-b border-border cursor-pointer"
               onClick={() => setIsChatbotExpanded(!isChatbotExpanded)}
             >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-                  <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                  </svg>
+              {isChatbotExpanded ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="font-medium text-sm">Lívia Assist</div>
+                      <div className="text-xs text-muted-foreground">Assistente de Viagem</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <svg 
+                      className="w-4 h-4 text-muted-foreground transition-transform duration-300" 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center w-full">
+                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-2">
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 </div>
-                <div>
-                  <div className="font-medium text-sm">Lívia Assist</div>
-                  <div className="text-xs text-muted-foreground">Assistente de Viagem</div>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                <svg 
-                  className={`w-4 h-4 text-muted-foreground transition-transform duration-300 ${
-                    isChatbotExpanded ? 'rotate-180' : ''
-                  }`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </div>
+              )}
             </div>
 
             {/* Corpo do Chatbot */}
@@ -1004,15 +1407,19 @@ export default function Home() {
                 {/* Área de Mensagens */}
                 <div 
                   ref={chatMessagesRef}
-                  className="flex-1 p-4 overflow-y-auto space-y-4"
-                  style={{ height: 'calc(100% - 120px)' }}
+                  className="p-4 overflow-y-auto space-y-4"
+                  style={{ height: 'calc(100vh - 140px)' }}
                 >
                   {chatbotMessages.length === 0 ? (
-                    <div className="text-center text-muted-foreground text-sm py-12">
-                      <div className="mb-4 text-4xl">👋</div>
-                      <div className="text-base font-medium mb-2">Olá! Sou a Lívia</div>
+                    <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground text-sm py-12">
+                      <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div className="text-base font-medium mb-2 text-foreground">Olá! Sou a Lívia</div>
                       <div className="mb-4">Sua assistente pessoal de viagem</div>
-                      <div className="text-xs bg-muted/50 rounded-lg p-3 mx-4">
+                      <div className="text-xs text-muted-foreground/70 max-w-[250px]">
                         💡 Clique em "Vamos Começar" para iniciarmos sua jornada!
                         <br />
                         Vou te guiar em cada passo da sua reserva.
@@ -1020,21 +1427,32 @@ export default function Home() {
                     </div>
                   ) : (
                     chatbotMessages.map((message) => (
-                      <div key={message.id} className="animate-fade-in-up">
-                        <div className={`max-w-[90%] p-4 rounded-lg text-sm leading-relaxed ${
-                          message.type === 'success' 
-                            ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-l-4 border-green-500'
-                            : message.type === 'guidance'
-                            ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-l-4 border-blue-500'
-                            : 'bg-muted text-muted-foreground border-l-4 border-muted-foreground'
-                        }`}>
-                          {message.text}
+                      <div key={message.id} className="flex gap-3 mb-6 animate-fade-in-up">
+                        {/* Avatar da Lívia */}
+                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                          </svg>
                         </div>
-                        <div className="text-xs text-muted-foreground mt-2 ml-2">
-                          {message.timestamp.toLocaleTimeString('pt-BR', { 
-                            hour: '2-digit', 
-                            minute: '2-digit' 
-                          })}
+                        
+                        {/* Conteúdo da mensagem */}
+                        <div className="flex-1">
+                          <div className="text-sm text-foreground leading-relaxed whitespace-pre-line">
+                            {message.text}
+                            {message.isTyping && (
+                              <span className="inline-block w-2 h-4 bg-foreground ml-1 animate-pulse"></span>
+                            )}
+                          </div>
+                          
+                          {/* Renderizar card de resumo se existir */}
+                          {message.cardData && !message.isTyping && renderSummaryCard(message.cardData)}
+                          
+                          <div className="text-xs text-muted-foreground mt-2">
+                            {message.timestamp.toLocaleTimeString('pt-BR', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </div>
                         </div>
                       </div>
                     ))
@@ -1042,7 +1460,7 @@ export default function Home() {
                 </div>
 
                 {/* Rodapé do Chatbot */}
-                <div className="p-4 border-t border-border">
+                <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-background">
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
