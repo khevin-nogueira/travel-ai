@@ -1480,7 +1480,7 @@ Se o problema persistir, entre em contato conosco pelo WhatsApp.`;
                   animate={{ opacity: 1 }}
                   transition={{ delay: 0.2, duration: 0.6 }}
                 >
-                  AGÊNCIA DE VIAGENS / 2025
+                  Teste Técnico / 2025
                 </motion.div>
                 <motion.h1 
                   className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight"
