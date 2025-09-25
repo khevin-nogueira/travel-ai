@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { useTravelAgent } from "@/hooks/useTravelAgent"
 import { StructuredDataDisplay } from "@/components/ai/StructuredDataDisplay"
+import { useBooking } from "@/src/hooks/useBooking"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DestinationAutocomplete } from "@/components/destination-autocomplete"
@@ -80,6 +81,12 @@ export default function Home() {
   
   // Hook do agente de IA
   const { sendMessage, processStructuredData, isLoading: isAILoading, error: agentError } = useTravelAgent()
+  const { createBooking, isLoading: isBookingLoading, error: bookingError } = useBooking()
+
+  // Função para atualizar seção ativa programaticamente
+  const updateActiveSection = (sectionId: string) => {
+    setActiveSection(sectionId)
+  }
 
   // Sistema de checkpoints para controlar o progresso
   const [checkpoints, setCheckpoints] = useState({
@@ -500,68 +507,6 @@ export default function Home() {
     await sendAIMessage(userMessage);
   };
 
-  // Função para lidar com confirmação da reserva
-  const handleConfirmReservation = async (reservationData: any) => {
-    console.log('✅ Reserva confirmada:', reservationData);
-    
-    // Marcar checkpoint de reserva confirmada
-    markCheckpoint('reservation');
-    
-    // Mostrar mensagem de sucesso
-    setShowSuccessMessage(true);
-    
-    // Criar mensagem de sucesso
-    const successMessage = `🎉 **Reserva Confirmada com Sucesso!** 
-
-**Detalhes da sua viagem:**
-• Origem: ${selectedFlight?.origin || 'N/A'}
-• Destino: ${selectedFlight?.destination || 'N/A'}
-• Data de ida: ${selectedFlight?.departureTime || 'N/A'}
-• Hotel: ${selectedHotel?.name || 'N/A'}
-• Total: R$ ${reservationData.breakdown.total.toLocaleString()}
-
-**📱 Enviando para WhatsApp...**
-Sua reserva foi enviada para o WhatsApp! Você receberá:
-• Confirmação imediata
-• Lembretes antes da viagem
-• Dicas e atualizações
-• Suporte 24/7
-
-**🔔 Notificações ativadas:**
-• 7 dias antes da viagem
-• 1 dia antes da viagem
-• 2 horas antes do voo
-• Check-in do hotel
-
-Obrigado por escolher a Sky Travels! ✈️`;
-
-    // Enviar mensagem de sucesso
-    await sendAIMessage(successMessage);
-
-    // Simular envio para WhatsApp
-    setTimeout(() => {
-      const whatsappMessage = `🎉 *Reserva Confirmada - Sky Travels*
-
-*Detalhes da Viagem:*
-• Origem: ${selectedFlight?.origin || 'N/A'}
-• Destino: ${selectedFlight?.destination || 'N/A'}
-• Data: ${selectedFlight?.departureTime || 'N/A'}
-• Hotel: ${selectedHotel?.name || 'N/A'}
-• Total: R$ ${reservationData.breakdown.total.toLocaleString()}
-
-*Notificações ativadas:*
-✅ Lembretes automáticos
-✅ Dicas de viagem
-✅ Suporte 24/7
-
-Obrigado por escolher a Sky Travels! ✈️`;
-
-      // Abrir WhatsApp com a mensagem
-      const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent(whatsappMessage)}`;
-      window.open(whatsappUrl, '_blank');
-    }, 2000);
-  };
-
   // Função para enviar mensagem para IA
   const sendAIMessage = async (message: string) => {
     if (!message.trim()) return
@@ -694,6 +639,126 @@ Obrigado por escolher a Sky Travels! ✈️`;
     }
   }
 
+  // Função para lidar com confirmação da reserva
+  const handleConfirmReservation = async (reservationData: any) => {
+    console.log('✅ Reserva confirmada:', reservationData);
+    
+    try {
+      // Salvar no banco de dados
+      const bookingData = {
+        userId: 'user-123', // Em produção, pegar do contexto de autenticação
+        passengerInfo: {
+          firstName: 'João',
+          lastName: 'Silva',
+          email: 'joao@email.com',
+          phone: '+5511999999999'
+        },
+        flightData: {
+          airline: selectedFlight?.airline || 'Unknown',
+          flightNumber: selectedFlight?.flightNumber || 'N/A',
+          origin: selectedFlight?.origin || 'N/A',
+          destination: selectedFlight?.destination || 'N/A',
+          departureTime: selectedFlight?.departureTime || 'N/A',
+          arrivalTime: selectedFlight?.arrivalTime || 'N/A',
+          duration: '1h 15min', // Em produção, calcular baseado nas datas
+          price: selectedFlight?.price || 0,
+          aircraft: 'Boeing 737', // Em produção, pegar dos dados do voo
+          class: 'economy',
+          stops: 0
+        },
+        hotelData: selectedHotel ? {
+          name: selectedHotel.name,
+          category: '4 estrelas',
+          location: selectedHotel.location || 'Centro',
+          price: selectedHotel.price,
+          rating: selectedHotel.rating || 4.5,
+          checkin: '2024-01-15', // Em produção, pegar das datas selecionadas
+          checkout: '2024-01-18'
+        } : undefined,
+        paymentInfo: {
+          method: 'credit_card' as const,
+          cardNumber: '**** **** **** 1234',
+          expiryDate: '12/25',
+          cvv: '***'
+        }
+      };
+
+      const booking = await createBooking(bookingData);
+      console.log('💾 Reserva salva no banco:', booking);
+      
+      // Marcar checkpoint de reserva confirmada
+      markCheckpoint('reservation');
+      
+      // Mostrar mensagem de sucesso
+      setShowSuccessMessage(true);
+      
+      // Criar mensagem de sucesso
+      const successMessage = `🎉 **Reserva Confirmada com Sucesso!** 
+
+**Detalhes da sua viagem:**
+• Origem: ${selectedFlight?.origin || 'N/A'}
+• Destino: ${selectedFlight?.destination || 'N/A'}
+• Data de ida: ${selectedFlight?.departureTime || 'N/A'}
+• Hotel: ${selectedHotel?.name || 'N/A'}
+• Total: R$ ${reservationData.breakdown.total.toLocaleString()}
+• **ID da Reserva:** ${booking?.itineraryId}
+
+**📱 Enviando para WhatsApp...**
+Sua reserva foi enviada para o WhatsApp! Você receberá:
+• Confirmação imediata
+• Lembretes antes da viagem
+• Dicas e atualizações
+• Suporte 24/7
+
+**🔔 Notificações ativadas:**
+• 7 dias antes da viagem
+• 1 dia antes da viagem
+• 2 horas antes do voo
+• Check-in do hotel
+
+Obrigado por escolher a Sky Travels! ✈️`;
+
+    // Enviar mensagem de sucesso
+    await sendAIMessage(successMessage);
+
+    // Simular envio para WhatsApp
+    setTimeout(() => {
+      const whatsappMessage = `🎉 *Reserva Confirmada - Sky Travels*
+
+*Detalhes da Viagem:*
+• Origem: ${selectedFlight?.origin || 'N/A'}
+• Destino: ${selectedFlight?.destination || 'N/A'}
+• Data: ${selectedFlight?.departureTime || 'N/A'}
+• Hotel: ${selectedHotel?.name || 'N/A'}
+• Total: R$ ${reservationData.breakdown.total.toLocaleString()}
+
+*Notificações ativadas:*
+✅ Lembretes automáticos
+✅ Dicas de viagem
+✅ Suporte 24/7
+
+Obrigado por escolher a Sky Travels! ✈️`;
+
+      // Abrir WhatsApp com a mensagem
+      const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent(whatsappMessage)}`;
+      window.open(whatsappUrl, '_blank');
+    }, 2000);
+    
+    } catch (error) {
+      console.error('❌ Erro ao salvar reserva:', error);
+      
+      // Mostrar mensagem de erro
+      const errorMessage = `❌ **Erro ao confirmar reserva**
+
+Ocorreu um erro ao salvar sua reserva no banco de dados. Tente novamente em alguns instantes.
+
+Se o problema persistir, entre em contato conosco pelo WhatsApp.`;
+      
+      await sendAIMessage(errorMessage);
+    }
+  };
+
+
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark)
   }, [isDark])
@@ -763,10 +828,6 @@ Obrigado por escolher a Sky Travels! ✈️`;
     setIsDark(!isDark)
   }
 
-  // Função para atualizar seção ativa programaticamente
-  const updateActiveSection = (sectionId: string) => {
-    setActiveSection(sectionId)
-  }
 
   // Effect para garantir que a seção ativa seja atualizada quando elementos aparecem
   useEffect(() => {

@@ -1,0 +1,108 @@
+// Sky Travels Database Schema
+// Prisma schema for flights, hotels, and itineraries
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./sky-travels.db"
+}
+
+// Tabela de Itinerários (agrupa voos e hotéis)
+model Itinerary {
+  id            String   @id @default(cuid())
+  userId        String
+  status        String   @default("ACTIVE")
+  totalAmount   Float
+  currency      String   @default("BRL")
+  origin        String
+  destination   String
+  departureDate String
+  returnDate    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relacionamentos
+  flights ItineraryFlight[]
+  hotels  ItineraryHotel[]
+
+  @@map("itineraries")
+}
+
+// Tabela de Voos
+model Flight {
+  id              String   @id @default(cuid())
+  pnr             String   @unique
+  status          String   @default("TICKETED")
+  total           Float
+  currency        String   @default("BRL")
+  passengerName   String
+  passengerEmail  String
+  departureTime   String
+  arrivalTime     String
+  origin          String
+  destination     String
+  flightNumber    String
+  airline         String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  itineraries ItineraryFlight[]
+
+  @@map("flights")
+}
+
+// Tabela de Hotéis
+model Hotel {
+  id            String   @id @default(cuid())
+  reservationId String   @unique
+  status        String   @default("BOOKED")
+  total         Float
+  currency      String   @default("BRL")
+  guestName     String
+  guestEmail    String
+  hotelId       String
+  hotelName     String
+  checkin       String
+  checkout      String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relacionamentos
+  itineraries ItineraryHotel[]
+
+  @@map("hotels")
+}
+
+// Tabela de Relacionamento Itinerário-Voo
+model ItineraryFlight {
+  id          String     @id @default(cuid())
+  itineraryId String
+  flightId    String
+  createdAt   DateTime   @default(now())
+
+  // Relacionamentos
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  flight    Flight    @relation(fields: [flightId], references: [id], onDelete: Cascade)
+
+  @@unique([itineraryId, flightId])
+  @@map("itinerary_flights")
+}
+
+// Tabela de Relacionamento Itinerário-Hotel
+model ItineraryHotel {
+  id          String     @id @default(cuid())
+  itineraryId String
+  hotelId     String
+  createdAt   DateTime   @default(now())
+
+  // Relacionamentos
+  itinerary Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  hotel     Hotel     @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+
+  @@unique([itineraryId, hotelId])
+  @@map("itinerary_hotels")
+}

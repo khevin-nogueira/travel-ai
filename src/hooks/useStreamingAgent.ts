@@ -7,6 +7,7 @@ import { ResilienceService, ErrorHandler } from '../services/api/resilience'
 import { I18nService } from '../config/i18n'
 import { AIContentSanitizer } from '../utils/security'
 import { A11yService } from '../utils/accessibility'
+import { BookingIntegration } from '../lib/agents/booking-integration'
 
 export interface UseStreamingAgentReturn {
   // State
@@ -182,24 +183,55 @@ export const useStreamingAgent = (): UseStreamingAgentReturn => {
           await executeTool('search_hotels', { searchCriteria })
           
         } else if (lowerMessage.includes('reservar') || lowerMessage.includes('book')) {
-          // Book flight/hotel
-          const bookingData = {
-            flightId: 'flight_1',
-            passengerInfo: {
-              firstName: 'João',
-              lastName: 'Silva',
-              email: 'joao@email.com',
-              phone: '(11) 99999-9999'
-            },
-            paymentInfo: {
-              method: 'credit_card',
-              cardNumber: '1234567890123456',
-              expiryDate: '12/25',
-              cvv: '123'
-            }
+          // Book flight/hotel with persistence
+          const flightData = {
+            airline: 'LATAM',
+            flightNumber: 'LA1234',
+            origin: 'São Paulo',
+            destination: 'Rio de Janeiro',
+            departureTime: new Date().toISOString(),
+            arrivalTime: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
+            duration: '2h 00min',
+            price: 250,
+            aircraft: 'Boeing 737',
+            class: 'economy',
+            stops: 0
           }
-          
-          await executeTool('book_flight', bookingData)
+
+          const hotelData = {
+            name: 'Hotel Plaza',
+            category: '4 estrelas',
+            location: 'Rio de Janeiro',
+            price: 300,
+            rating: 4.5,
+            checkin: new Date().toISOString().split('T')[0],
+            checkout: new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          }
+
+          const passengerInfo = {
+            firstName: 'João',
+            lastName: 'Silva',
+            email: 'joao@email.com',
+            phone: '(11) 99999-9999'
+          }
+
+          const paymentInfo = {
+            method: 'credit_card',
+            cardNumber: '1234567890123456',
+            expiryDate: '12/25',
+            cvv: '123'
+          }
+
+          // Processar reserva com persistência
+          const confirmationComponent = await BookingIntegration.processReservationConfirmation(
+            flightData,
+            hotelData,
+            passengerInfo,
+            paymentInfo,
+            'default-user'
+          )
+
+          addComponent(confirmationComponent)
           
         } else {
           // Default response
