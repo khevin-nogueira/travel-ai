@@ -31,6 +31,7 @@ export default function Home() {
   const [returnDate, setReturnDate] = useState<Date | undefined>(undefined)
   const [selectedFlight, setSelectedFlight] = useState<any>(null)
   const [selectedHotel, setSelectedHotel] = useState<any>(null)
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false)
   const [showMap, setShowMap] = useState(false)
   const [showFlights, setShowFlights] = useState(false)
   const [showHotels, setShowHotels] = useState(false)
@@ -79,6 +80,145 @@ export default function Home() {
   
   // Hook do agente de IA
   const { sendMessage, processStructuredData, isLoading: isAILoading, error: agentError } = useTravelAgent()
+
+  // Sistema de checkpoints para controlar o progresso
+  const [checkpoints, setCheckpoints] = useState({
+    destination: false,
+    origin: false,
+    dates: false,
+    flights: false,
+    hotels: false,
+    reservation: false
+  })
+
+  // Estado para controlar a mensagem atual e progresso
+  const [currentStepMessage, setCurrentStepMessage] = useState({
+    title: "Sua próxima aventura começa aqui",
+    subtitle: "Oferecemos as melhores experiências de viagem, voos, e hospedagem.",
+    status: "Reservas abertas 24/7"
+  })
+
+  // Estado para controlar o progresso
+  const [progress, setProgress] = useState(0)
+
+  // Carregar checkpoints do localStorage na inicialização
+  useEffect(() => {
+    const savedCheckpoints = localStorage.getItem('sky-travels-checkpoints')
+    if (savedCheckpoints) {
+      try {
+        const parsed = JSON.parse(savedCheckpoints)
+        setCheckpoints(parsed)
+        console.log('📂 Checkpoints carregados:', parsed)
+      } catch (error) {
+        console.error('Erro ao carregar checkpoints:', error)
+      }
+    }
+  }, [])
+
+  // Salvar checkpoints no localStorage sempre que mudarem
+  useEffect(() => {
+    localStorage.setItem('sky-travels-checkpoints', JSON.stringify(checkpoints))
+    console.log('💾 Checkpoints salvos:', checkpoints)
+  }, [checkpoints])
+
+  // Função para marcar checkpoint
+  const markCheckpoint = (checkpoint: keyof typeof checkpoints) => {
+    setCheckpoints(prev => ({
+      ...prev,
+      [checkpoint]: true
+    }))
+    console.log(`✅ Checkpoint marcado: ${checkpoint}`)
+  }
+
+  // Função para resetar checkpoints
+  const resetCheckpoints = () => {
+    setCheckpoints({
+      destination: false,
+      origin: false,
+      dates: false,
+      flights: false,
+      hotels: false,
+      reservation: false
+    })
+    console.log('🔄 Checkpoints resetados')
+  }
+
+  // Função para determinar a etapa atual e mensagem dinâmica
+  const getCurrentStepMessage = () => {
+    // Determina a etapa atual baseada nos checkpoints
+    if (!checkpoints.destination) {
+      return {
+        title: "🌍 Para onde vamos viajar?",
+        subtitle: "Me diga o destino dos seus sonhos e eu te ajudo a chegar lá!",
+        status: "Etapa 1 de 6 - Escolha do destino"
+      }
+    } else if (!checkpoints.origin) {
+      return {
+        title: "✈️ De onde você está partindo?",
+        subtitle: "Agora me conte sua cidade de origem para encontrarmos os melhores voos.",
+        status: "Etapa 2 de 6 - Cidade de origem"
+      }
+    } else if (!checkpoints.dates) {
+      return {
+        title: "📅 Quando você quer viajar?",
+        subtitle: "Escolha as datas da sua viagem para buscarmos as melhores opções.",
+        status: "Etapa 3 de 6 - Datas da viagem"
+      }
+    } else if (!checkpoints.flights) {
+      return {
+        title: "🔍 Buscando voos para você...",
+        subtitle: "Encontrei várias opções de voos. Escolha a que mais te agrada!",
+        status: "Etapa 4 de 6 - Seleção de voos"
+      }
+    } else if (!checkpoints.hotels) {
+      return {
+        title: "🏨 Procurando hotéis...",
+        subtitle: "Agora vou buscar os melhores hotéis no seu destino!",
+        status: "Etapa 5 de 6 - Seleção de hotéis"
+      }
+    } else if (!checkpoints.reservation) {
+      return {
+        title: "💳 Quase lá!",
+        subtitle: "Selecione um voo e um hotel para finalizarmos sua reserva.",
+        status: "Etapa 6 de 6 - Finalização"
+      }
+    } else {
+      return {
+        title: "🎉 Reserva confirmada!",
+        subtitle: "Sua viagem está garantida! Você receberá todas as informações por WhatsApp.",
+        status: "Reserva finalizada com sucesso"
+      }
+    }
+  }
+
+  // Função para calcular o progresso baseado nos checkpoints
+  const calculateProgress = () => {
+    let progress = 0
+    if (checkpoints.destination) progress += 16.66
+    if (checkpoints.origin) progress += 16.66
+    if (checkpoints.dates) progress += 16.66
+    if (checkpoints.flights) progress += 16.66
+    if (checkpoints.hotels) progress += 16.66
+    if (checkpoints.reservation) progress += 16.66
+
+    return Math.round(progress)
+  }
+
+  // Atualizar mensagem e progresso quando as dependências mudarem
+  useEffect(() => {
+    const newMessage = getCurrentStepMessage()
+    setCurrentStepMessage(newMessage)
+    
+    const newProgress = calculateProgress()
+    setProgress(newProgress)
+    
+    // Debug logs
+    console.log('🔄 Progresso atualizado:', {
+      checkpoints,
+      progress: newProgress,
+      currentStep: newMessage.status
+    })
+  }, [checkpoints])
 
   // Função para detectar perguntas e mostrar botões
   const detectQuestionButtons = (messageText: string) => {
@@ -360,6 +500,68 @@ export default function Home() {
     await sendAIMessage(userMessage);
   };
 
+  // Função para lidar com confirmação da reserva
+  const handleConfirmReservation = async (reservationData: any) => {
+    console.log('✅ Reserva confirmada:', reservationData);
+    
+    // Marcar checkpoint de reserva confirmada
+    markCheckpoint('reservation');
+    
+    // Mostrar mensagem de sucesso
+    setShowSuccessMessage(true);
+    
+    // Criar mensagem de sucesso
+    const successMessage = `🎉 **Reserva Confirmada com Sucesso!** 
+
+**Detalhes da sua viagem:**
+• Origem: ${selectedFlight?.origin || 'N/A'}
+• Destino: ${selectedFlight?.destination || 'N/A'}
+• Data de ida: ${selectedFlight?.departureTime || 'N/A'}
+• Hotel: ${selectedHotel?.name || 'N/A'}
+• Total: R$ ${reservationData.breakdown.total.toLocaleString()}
+
+**📱 Enviando para WhatsApp...**
+Sua reserva foi enviada para o WhatsApp! Você receberá:
+• Confirmação imediata
+• Lembretes antes da viagem
+• Dicas e atualizações
+• Suporte 24/7
+
+**🔔 Notificações ativadas:**
+• 7 dias antes da viagem
+• 1 dia antes da viagem
+• 2 horas antes do voo
+• Check-in do hotel
+
+Obrigado por escolher a Sky Travels! ✈️`;
+
+    // Enviar mensagem de sucesso
+    await sendAIMessage(successMessage);
+
+    // Simular envio para WhatsApp
+    setTimeout(() => {
+      const whatsappMessage = `🎉 *Reserva Confirmada - Sky Travels*
+
+*Detalhes da Viagem:*
+• Origem: ${selectedFlight?.origin || 'N/A'}
+• Destino: ${selectedFlight?.destination || 'N/A'}
+• Data: ${selectedFlight?.departureTime || 'N/A'}
+• Hotel: ${selectedHotel?.name || 'N/A'}
+• Total: R$ ${reservationData.breakdown.total.toLocaleString()}
+
+*Notificações ativadas:*
+✅ Lembretes automáticos
+✅ Dicas de viagem
+✅ Suporte 24/7
+
+Obrigado por escolher a Sky Travels! ✈️`;
+
+      // Abrir WhatsApp com a mensagem
+      const whatsappUrl = `https://wa.me/5511999999999?text=${encodeURIComponent(whatsappMessage)}`;
+      window.open(whatsappUrl, '_blank');
+    }, 2000);
+  };
+
   // Função para enviar mensagem para IA
   const sendAIMessage = async (message: string) => {
     if (!message.trim()) return
@@ -401,13 +603,56 @@ export default function Home() {
             setShowMap(true)
             setShowFlights(true)
             updateActiveSection('flights')
+            markCheckpoint('flights') // Marcar checkpoint de voos
           } else if (processedData.type === 'hotels') {
             setShowMap(true)
             setShowFlights(true)
             setShowHotels(true)
             updateActiveSection('hotels')
+            markCheckpoint('hotels') // Marcar checkpoint de hotéis
           }
         }
+      }
+
+      // Detectar e marcar checkpoints baseado no conteúdo da mensagem
+      const lowerMessage = message.toLowerCase()
+      
+      // Detectar destino
+      if ((lowerMessage.includes('viajar') || 
+           lowerMessage.includes('destino') ||
+           lowerMessage.includes('para') ||
+           lowerMessage.includes('ir para') ||
+           lowerMessage.includes('quero ir')) && !checkpoints.destination) {
+        markCheckpoint('destination')
+      }
+      
+      // Detectar origem
+      if ((lowerMessage.includes('partir') || 
+           lowerMessage.includes('origem') ||
+           lowerMessage.includes('de onde') ||
+           lowerMessage.includes('saindo de') ||
+           lowerMessage.includes('vou de')) && !checkpoints.origin) {
+        markCheckpoint('origin')
+      }
+      
+      // Detectar datas
+      if ((lowerMessage.includes('data') || 
+           lowerMessage.includes('quando') ||
+           lowerMessage.includes('dia') ||
+           lowerMessage.includes('mês') ||
+           lowerMessage.includes('janeiro') ||
+           lowerMessage.includes('fevereiro') ||
+           lowerMessage.includes('março') ||
+           lowerMessage.includes('abril') ||
+           lowerMessage.includes('maio') ||
+           lowerMessage.includes('junho') ||
+           lowerMessage.includes('julho') ||
+           lowerMessage.includes('agosto') ||
+           lowerMessage.includes('setembro') ||
+           lowerMessage.includes('outubro') ||
+           lowerMessage.includes('novembro') ||
+           lowerMessage.includes('dezembro')) && !checkpoints.dates) {
+        markCheckpoint('dates')
       }
 
       // Detectar se precisa adicionar botões
@@ -664,7 +909,7 @@ export default function Home() {
         return (
           <div className="mt-4 w-full max-w-[450px] animate-bounce-in">
             {/* Header do Card */}
-            <div className="bg-gradient-to-r from-blue-500 to-purple-600 rounded-t-xl p-4 text-white animate-pulse-glow">
+            <div className="bg-gray-900 rounded-t-xl p-4 text-white">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -690,11 +935,11 @@ export default function Home() {
                     {/* Header do Voo */}
                     <div className="flex justify-between items-start mb-3">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                        <div className="w-8 h-8 bg-gray-800 rounded-lg flex items-center justify-center text-white text-xs font-bold">
                           {flight.airline?.slice(0, 2) || 'LA'}
                         </div>
                         <div>
-                          <div className="font-semibold text-gray-900 dark:text-white group-hover:text-blue-600 transition-colors">
+                          <div className="font-semibold text-gray-900 dark:text-white group-hover:text-gray-700 transition-colors">
                             {flight.airline || flight.airlineName}
                           </div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
@@ -728,8 +973,8 @@ export default function Home() {
                         </div>
                         
                         <div className="flex-1 mx-4 relative">
-                          <div className="h-0.5 bg-gradient-to-r from-blue-500 to-purple-600 relative">
-                            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                          <div className="h-0.5 bg-gray-300 relative">
+                            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center">
                               <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                               </svg>
@@ -779,7 +1024,7 @@ export default function Home() {
                           e.stopPropagation();
                           handleFlightSelection(flight);
                         }}
-                        className="px-3 py-1 bg-blue-500 text-white rounded-full text-xs font-medium hover:bg-blue-600 transition-colors opacity-0 group-hover:opacity-100"
+                        className="px-3 py-1 bg-gray-800 text-white rounded-full text-xs font-medium hover:bg-gray-700 transition-colors opacity-0 group-hover:opacity-100"
                       >
                         Selecionar
                       </button>
@@ -1045,81 +1290,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-background text-foreground relative">
-      {/* Mode Toggle - Top Header */}
-      <motion.div 
-        className="fixed top-6 left-1/2 -translate-x-1/2 z-50"
-        initial={{ y: -20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.5, duration: 0.6, ease: "easeOut" }}
-      >
-        <motion.div 
-          className="bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg"
-          whileHover={{ scale: 1.02 }}
-          transition={{ duration: 0.2 }}
-        >
-          <div className="flex items-center gap-1">
-            <motion.button
-              onClick={() => setIsAIMode(false)}
-              className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
-                !isAIMode 
-                  ? 'bg-foreground text-background shadow-sm' 
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.svg 
-                className="w-4 h-4" 
-                fill="currentColor" 
-                viewBox="0 0 20 20"
-                animate={!isAIMode ? { rotate: [0, 10, 0] } : {}}
-                transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 3 }}
-              >
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
-              </motion.svg>
-              Modo Assistido
-            </motion.button>
-            <motion.button
-              onClick={() => {
-                setIsAIMode(true)
-                setShowChatbot(true)
-                setIsChatbotExpanded(true)
-              }}
-              className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
-                isAIMode 
-                  ? 'bg-foreground text-background shadow-sm' 
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              <motion.svg 
-                className="w-4 h-4" 
-                fill="currentColor" 
-                viewBox="0 0 20 20"
-                animate={isAIMode ? { 
-                  filter: [
-                    "drop-shadow(0 0 0px rgba(59, 130, 246, 0))",
-                    "drop-shadow(0 0 6px rgba(59, 130, 246, 0.6))",
-                    "drop-shadow(0 0 0px rgba(59, 130, 246, 0))"
-                  ]
-                } : {}}
-                transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
-              >
-                <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-              </motion.svg>
-              <motion.span
-                animate={isAIMode ? { 
-                  color: ["#ffffff", "#3b82f6", "#ffffff"]
-                } : {}}
-                transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
-              >
-                Modo IA
-              </motion.span>
-            </motion.button>
-          </div>
-        </motion.div>
-      </motion.div>
 
       <nav className="fixed left-8 top-1/2 -translate-y-1/2 z-10 hidden lg:block">
         <div className="flex flex-col gap-6">
@@ -1295,52 +1465,41 @@ export default function Home() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 1, duration: 0.8, ease: "easeOut" }}
               >
-                <motion.p 
-                  className="text-lg sm:text-xl text-muted-foreground leading-relaxed"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 1.2, duration: 0.6 }}
-                >
-                  Sua próxima aventura começa aqui. Oferecemos as melhores experiências de
-                  <motion.span 
-                    className="text-foreground"
-                    animate={{ 
-                      color: ["#ffffff", "#3b82f6", "#ffffff"],
-                    }}
-                    transition={{ 
-                      duration: 2,
-                      repeat: Infinity,
-                      repeatDelay: 4,
-                      ease: "easeInOut"
-                    }}
-                  > viagem</motion.span>,<motion.span 
-                    className="text-foreground"
-                    animate={{ 
-                      color: ["#ffffff", "#8b5cf6", "#ffffff"],
-                    }}
-                    transition={{ 
-                      duration: 2,
-                      repeat: Infinity,
-                      repeatDelay: 4,
-                      delay: 0.5,
-                      ease: "easeInOut"
-                    }}
-                  > voos</motion.span>,
-                  e
-                  <motion.span 
-                    className="text-foreground"
-                    animate={{ 
-                      color: ["#ffffff", "#10b981", "#ffffff"],
-                    }}
-                    transition={{ 
-                      duration: 2,
-                      repeat: Infinity,
-                      repeatDelay: 4,
-                      delay: 1,
-                      ease: "easeInOut"
-                    }}
-                  > hospedagem</motion.span>.
-                </motion.p>
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentStepMessage.title}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.5, ease: "easeInOut" }}
+                  >
+                    <motion.p 
+                      className="text-lg sm:text-xl text-muted-foreground leading-relaxed"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 1.2, duration: 0.6 }}
+                    >
+                      <motion.span 
+                        className="text-foreground font-medium"
+                        animate={{ 
+                          color: ["#ffffff", "#3b82f6", "#ffffff"],
+                        }}
+                        transition={{ 
+                          duration: 2,
+                          repeat: Infinity,
+                          repeatDelay: 4,
+                          ease: "easeInOut"
+                        }}
+                      >
+                        {currentStepMessage.title}
+                      </motion.span>
+                      <br />
+                      <span className="text-muted-foreground">
+                        {currentStepMessage.subtitle}
+                      </span>
+                    </motion.p>
+                  </motion.div>
+                </AnimatePresence>
 
                 <motion.div 
                   className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 text-sm text-muted-foreground"
@@ -1350,7 +1509,9 @@ export default function Home() {
                 >
                   <div className="flex items-center gap-2">
                     <motion.div 
-                      className="w-2 h-2 bg-green-500 rounded-full"
+                      className={`w-2 h-2 rounded-full ${
+                        currentStepMessage.status.includes('confirmada') ? 'bg-green-500' : 'bg-blue-500'
+                      }`}
                       animate={{ 
                         scale: [1, 1.2, 1],
                         opacity: [1, 0.7, 1]
@@ -1361,27 +1522,58 @@ export default function Home() {
                         ease: "easeInOut"
                       }}
                     ></motion.div>
-                    Reservas abertas 24/7
+                    {currentStepMessage.status}
                   </div>
                   <div>Brasil & Internacional</div>
                 </motion.div>
+
+                {/* Barra de Progresso */}
+                <motion.div 
+                  className="w-full"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 1.6, duration: 0.6 }}
+                >
+                    <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+                      <span>Progresso da reserva</span>
+                      <div className="flex items-center gap-2">
+                        <span>{progress}%</span>
+                        {progress > 0 && (
+                          <button
+                            onClick={resetCheckpoints}
+                            className="text-xs text-gray-400 hover:text-gray-300 underline"
+                            title="Resetar progresso"
+                          >
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="w-full bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <motion.div 
+                        className="h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full"
+                        initial={{ width: "0%" }}
+                        animate={{ width: `${progress}%` }}
+                        transition={{ duration: 0.8, ease: "easeInOut" }}
+                      />
+                    </div>
+                  </motion.div>
               </motion.div>
             </div>
 
             <div className="lg:col-span-2 flex flex-col justify-end space-y-6 sm:space-y-8 mt-8 lg:mt-0">
+            {/* Botão Travel AI */}
             <motion.button
               onClick={() => {
+                setIsAIMode(true)
                 setShowChatbot(true)
+                setIsChatbotExpanded(true)
                 addChatbotMessage('Olá! Sou a Lívia Assist, sua assistente pessoal de viagem. Vou te ajudar durante todo o processo de reserva! 🌟\n\nPara começar, você precisa preencher os campos de origem, destino e data de ida. Vamos começar?', 'info', 'welcome-start-message')
-                setTimeout(() => {
-                document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' })
-                  updateActiveSection('search')
-                }, 100)
               }}
               className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-all duration-300 font-medium text-lg group"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.6, duration: 0.8, ease: "easeOut" }}
+              transition={{ delay: 1.4, duration: 0.8, ease: "easeOut" }}
               whileHover={{ 
                 scale: 1.05,
                 boxShadow: "0 10px 25px rgba(59, 130, 246, 0.3)"
@@ -1403,7 +1595,7 @@ export default function Home() {
                   ease: "easeInOut"
                 }}
               >
-                Vamos Começar
+                Travel AI
               </motion.span>
               <motion.svg
                 className="w-5 h-5 ml-2 inline-block"
@@ -1418,14 +1610,62 @@ export default function Home() {
                   ease: "easeInOut"
                 }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 14l-7 7m0 0l-7-7m7 7V3"
-                />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </motion.svg>
             </motion.button>
+
+            {/* Botão Começar */}
+            <motion.button
+              onClick={() => {
+                setTimeout(() => {
+                  document.getElementById('search')?.scrollIntoView({ behavior: 'smooth' })
+                  updateActiveSection('search')
+                }, 100)
+              }}
+              className="px-8 py-4 bg-muted text-foreground rounded-lg hover:bg-muted/80 transition-all duration-300 font-medium text-lg group"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.6, duration: 0.8, ease: "easeOut" }}
+              whileHover={{ 
+                scale: 1.05,
+                boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)"
+              }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <motion.span
+                animate={{ 
+                  textShadow: [
+                    "0 0 0px rgba(0, 0, 0, 0)",
+                    "0 0 8px rgba(0, 0, 0, 0.2)",
+                    "0 0 0px rgba(0, 0, 0, 0)"
+                  ]
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatDelay: 3,
+                  ease: "easeInOut"
+                }}
+              >
+                Começar
+              </motion.span>
+              <motion.svg
+                className="w-5 h-5 ml-2 inline-block"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+                animate={{ y: [0, -3, 0] }}
+                transition={{ 
+                  duration: 1.5,
+                  repeat: Infinity,
+                  repeatDelay: 2,
+                  ease: "easeInOut"
+                }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+              </motion.svg>
+            </motion.button>
+
             </div>
           </div>
         </header>
@@ -2375,7 +2615,7 @@ export default function Home() {
         <div className="fixed top-0 right-0 z-50 h-screen">
           <div className={`bg-background border-l border-border shadow-2xl transition-all duration-300 h-full relative ${
             isChatbotExpanded 
-              ? 'w-80 sm:w-96' 
+              ? 'w-[28rem] sm:w-[32rem]' 
               : 'w-16'
           }`}>
             {/* Cabeçalho do Chatbot */}
@@ -2386,7 +2626,7 @@ export default function Home() {
               {isChatbotExpanded ? (
                 <>
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center">
                   <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                   </svg>
@@ -2397,7 +2637,7 @@ export default function Home() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
                 <svg 
                       className="w-4 h-4 text-muted-foreground transition-transform duration-300" 
                   fill="none" 
@@ -2410,12 +2650,12 @@ export default function Home() {
                 </>
               ) : (
                 <div className="flex flex-col items-center justify-center w-full">
-                  <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-2">
+                  <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center mb-2">
                     <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                     </svg>
                   </div>
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-gray-500 rounded-full animate-pulse"></div>
                 </div>
               )}
             </div>
@@ -2433,7 +2673,7 @@ export default function Home() {
                     // Modo IA - Mensagens do useChat
                     aiMessages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground text-sm py-12">
-                        <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                        <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4">
                           <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                           </svg>
@@ -2450,7 +2690,7 @@ export default function Home() {
                         {aiMessages.map((message: any) => (
                           <div key={message.id} className="flex gap-3 mb-6 animate-fade-in-up">
                             {message.role === 'assistant' && (
-                              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                              <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center flex-shrink-0">
                                 <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                                 </svg>
@@ -2481,6 +2721,7 @@ export default function Home() {
                                     data={processedData}
                                     onFlightSelect={handleFlightSelection}
                                     onHotelSelect={handleHotelSelection}
+                                    onConfirmReservation={handleConfirmReservation}
                                   />
                                 ) : null;
                               })()}
@@ -2501,18 +2742,18 @@ export default function Home() {
                                     const isDateButton = message.questionButtons.type === 'departure_date';
                                     const isOriginButton = message.questionButtons.type === 'origin_city';
                                     
-                                    let buttonStyle = 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700'; // Padrão
+                                    let buttonStyle = 'bg-gray-800 hover:bg-gray-700 text-white'; // Padrão
                                     let icon = null;
                                     
                                     if (isDateButton) {
-                                      buttonStyle = 'bg-gradient-to-r from-green-500 to-teal-600 hover:from-green-600 hover:to-teal-700';
+                                      buttonStyle = 'bg-gray-700 hover:bg-gray-600 text-white';
                                       icon = (
                                         <svg className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
                                         </svg>
                                       );
                                     } else if (isOriginButton) {
-                                      buttonStyle = 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700';
+                                      buttonStyle = 'bg-gray-600 hover:bg-gray-500 text-white';
                                       icon = (
                                         <svg className="w-4 h-4 transition-transform duration-200 group-hover:scale-110" fill="currentColor" viewBox="0 0 20 20">
                                           <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
@@ -2574,7 +2815,7 @@ export default function Home() {
                         {/* Indicador de digitação */}
                         {isAILoading && (
                           <div className="flex gap-3 mb-6">
-                            <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                            <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center flex-shrink-0">
                               <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                               </svg>
@@ -2594,7 +2835,7 @@ export default function Home() {
                     // Modo Assistido - Mensagens antigas
                     chatbotMessages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-full text-center text-muted-foreground text-sm py-12">
-                        <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center mb-4">
+                        <div className="w-16 h-16 bg-gray-800 rounded-full flex items-center justify-center mb-4">
                           <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                           </svg>
@@ -2611,7 +2852,7 @@ export default function Home() {
                     chatbotMessages.map((message) => (
                         <div key={message.id} className="flex gap-3 mb-6 animate-fade-in-up">
                           {/* Avatar da Lívia */}
-                          <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                          <div className="w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center flex-shrink-0">
                             <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
                             </svg>
