@@ -3,6 +3,8 @@
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
+import { useTravelAgent } from "@/hooks/useTravelAgent"
+import { StructuredDataDisplay } from "@/components/ai/StructuredDataDisplay"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DestinationAutocomplete } from "@/components/destination-autocomplete"
@@ -61,14 +63,22 @@ export default function Home() {
     role: 'user' | 'assistant'
     content: string
     timestamp: Date
+    toolCalls?: Array<{
+      name: string
+      arguments: any
+      result?: string
+    }>
+    structuredData?: any
   }>>([{
     id: 'welcome',
     role: 'assistant',
-    content: 'Olá! Sou a Lívia Assist, sua assistente pessoal de viagem da Sky Travels! ✈️\n\nVou te ajudar a encontrar e reservar a viagem perfeita. Para começar, me conte: para onde você gostaria de viajar? 🌍',
+    content: 'Olá! Sou a Lívia Assist, sua assistente pessoal de viagem da Sky Travels! ✈️\n\nVou te guiar através de um processo simples para planejar sua viagem perfeita. Para começar, me diga: **para onde você gostaria de viajar?** 🌍',
     timestamp: new Date()
   }])
   const [aiInput, setAiInput] = useState('')
-  const [isAILoading, setIsAILoading] = useState(false)
+  
+  // Hook do agente de IA
+  const { sendMessage, processStructuredData, isLoading: isAILoading, error: agentError } = useTravelAgent()
 
   // Função para detectar perguntas e mostrar botões
   const detectQuestionButtons = (messageText: string) => {
@@ -169,294 +179,6 @@ export default function Home() {
     return null;
   };
 
-  // Função para processar dados estruturados da IA
-  const processStructuredData = (messageText: string) => {
-    try {
-      console.log('🔍 Verificando dados estruturados na mensagem...')
-      
-      // Verificar se a mensagem está completa (tem marcadores de fim)
-      const hasCompleteFlights = messageText.includes('**FIM_VOOS_SUGESTOES**');
-      const hasCompleteHotels = messageText.includes('**FIM_HOTEIS_SUGESTOES**');
-      
-      // Detectar seção de voos (com ou sem marcadores ```json)
-      let flightsMatch = messageText.match(/\*\*VOOS_SUGESTOES\*\*\s*```json\s*([\s\S]*?)\s*```\s*\*\*FIM_VOOS_SUGESTOES\*\*/);
-      
-      // Se não encontrar com ```json, tentar sem
-      if (!flightsMatch) {
-        flightsMatch = messageText.match(/\*\*VOOS_SUGESTOES\*\*\s*([\s\S]*?)\s*\*\*FIM_VOOS_SUGESTOES\*\*/);
-      }
-      
-      if (flightsMatch && hasCompleteFlights) {
-        console.log('✈️ Dados de voos encontrados e completos!')
-        console.log('🔍 JSON bruto encontrado:', flightsMatch[1])
-        try {
-          // Limpar o JSON antes de fazer parse
-          let jsonStr = flightsMatch[1].trim()
-          
-          // Remover quebras de linha e espaços extras
-          jsonStr = jsonStr.replace(/\n/g, ' ').replace(/\s+/g, ' ')
-          
-          // Tentar corrigir JSON malformado (aspas simples para duplas, etc)
-          jsonStr = jsonStr.replace(/'/g, '"')
-          
-          console.log('🔧 JSON limpo:', jsonStr)
-          
-          const flightsData = JSON.parse(jsonStr)
-          console.log('📊 Voos parseados:', flightsData)
-          
-          // Adicionar card de voos ao chat
-          setTimeout(() => {
-            const cardMessage = {
-              id: `flights-structured-${Date.now()}`,
-              role: 'assistant' as const,
-              content: `Aqui estão os ${flightsData.flights.length} voos disponíveis:`,
-              timestamp: new Date(),
-              cardData: {
-                type: 'flights',
-                flights: flightsData.flights,
-                summary: {
-                  flightCount: flightsData.flights.length,
-                  priceRange: {
-                    min: Math.min(...flightsData.flights.map((f: any) => f.price)),
-                    max: Math.max(...flightsData.flights.map((f: any) => f.price))
-                  }
-                }
-              }
-            }
-            
-            setAiMessages(prev => [...prev, cardMessage])
-            console.log('💬 Card de voos adicionado ao chat!')
-            
-            // Atualizar frontend
-            setShowMap(true)
-            setShowFlights(true)
-            updateActiveSection('flights')
-          }, 200)
-          
-        } catch (parseError) {
-          console.error('💥 Erro ao fazer parse dos voos:', parseError)
-          console.log('🚨 Tentando parse alternativo...')
-          
-          // Fallback: criar voos mock baseados na conversa
-          const mockFlights = [
-            {
-              airline: "LATAM Airlines",
-              flightNumber: "LA1234",
-              origin: "CNF",
-              destination: "SAO",
-              departureTime: "08:00",
-              arrivalTime: "09:15",
-              duration: "1h 15min",
-              price: 250,
-              aircraft: "Boeing 737"
-            },
-            {
-              airline: "Azul",
-              flightNumber: "AD5678",
-              origin: "CNF",
-              destination: "SAO", 
-              departureTime: "10:30",
-              arrivalTime: "11:45",
-              duration: "1h 15min",
-              price: 280,
-              aircraft: "Airbus A320"
-            },
-            {
-              airline: "LATAM Airlines",
-              flightNumber: "LA9876",
-              origin: "CNF",
-              destination: "SAO",
-              departureTime: "14:00",
-              arrivalTime: "15:15",
-              duration: "1h 15min",
-              price: 275,
-              aircraft: "Boeing 737"
-            },
-            {
-              airline: "Azul",
-              flightNumber: "AD3456",
-              origin: "CNF",
-              destination: "SAO",
-              departureTime: "16:30",
-              arrivalTime: "17:45",
-              duration: "1h 15min",
-              price: 290,
-              aircraft: "Embraer E195"
-            },
-            {
-              airline: "LATAM Airlines",
-              flightNumber: "LA7777",
-              origin: "CNF",
-              destination: "SAO",
-              departureTime: "19:00",
-              arrivalTime: "20:15",
-              duration: "1h 15min",
-              price: 260,
-              aircraft: "Boeing 737"
-            }
-          ]
-          
-          console.log('🛫 Usando voos mock como fallback')
-          
-          // Adicionar card com dados mock
-          setTimeout(() => {
-            const cardMessage = {
-              id: `flights-fallback-${Date.now()}`,
-              role: 'assistant' as const,
-              content: `Aqui estão os 5 voos disponíveis:`,
-              timestamp: new Date(),
-              cardData: {
-                type: 'flights',
-                flights: mockFlights,
-                summary: {
-                  flightCount: mockFlights.length,
-                  priceRange: {
-                    min: Math.min(...mockFlights.map(f => f.price)),
-                    max: Math.max(...mockFlights.map(f => f.price))
-                  }
-                }
-              }
-            }
-            
-            setAiMessages(prev => [...prev, cardMessage])
-            console.log('💬 Card de voos mock adicionado ao chat!')
-            
-            // Atualizar frontend
-            setShowMap(true)
-            setShowFlights(true)
-            updateActiveSection('flights')
-          }, 200)
-        }
-      }
-      
-      // Detectar seção de hotéis
-      let hotelsMatch = messageText.match(/\*\*HOTEIS_SUGESTOES\*\*\s*```json\s*([\s\S]*?)\s*```\s*\*\*FIM_HOTEIS_SUGESTOES\*\*/);
-      
-      // Se não encontrar com ```json, tentar sem
-      if (!hotelsMatch) {
-        hotelsMatch = messageText.match(/\*\*HOTEIS_SUGESTOES\*\*\s*([\s\S]*?)\s*\*\*FIM_HOTEIS_SUGESTOES\*\*/);
-      }
-      
-      if (hotelsMatch && hasCompleteHotels) {
-        console.log('🏨 Dados de hotéis encontrados e completos!')
-        console.log('🔍 JSON de hotéis bruto:', hotelsMatch[1])
-        try {
-          // Limpar o JSON antes de fazer parse
-          let jsonStr = hotelsMatch[1].trim()
-          
-          // Remover quebras de linha e espaços extras
-          jsonStr = jsonStr.replace(/\n/g, ' ').replace(/\s+/g, ' ')
-          
-          // Tentar corrigir JSON malformado
-          jsonStr = jsonStr.replace(/'/g, '"')
-          
-          console.log('🔧 JSON de hotéis limpo:', jsonStr)
-          
-          const hotelsData = JSON.parse(jsonStr)
-          console.log('📊 Hotéis parseados:', hotelsData)
-          
-          // Adicionar card de hotéis ao chat
-          setTimeout(() => {
-            const cardMessage = {
-              id: `hotels-structured-${Date.now()}`,
-              role: 'assistant' as const,
-              content: `Aqui estão os ${hotelsData.hotels.length} hotéis disponíveis:`,
-              timestamp: new Date(),
-              cardData: {
-                type: 'hotels',
-                hotels: hotelsData.hotels,
-                summary: {
-                  hotelCount: hotelsData.hotels.length,
-                  priceRange: {
-                    min: Math.min(...hotelsData.hotels.map((h: any) => h.prices?.total || 200)),
-                    max: Math.max(...hotelsData.hotels.map((h: any) => h.prices?.total || 800))
-                  }
-                }
-              }
-            }
-            
-            setAiMessages(prev => [...prev, cardMessage])
-            console.log('💬 Card de hotéis adicionado ao chat!')
-            
-            // Atualizar frontend
-            setShowHotels(true)
-            updateActiveSection('hotels')
-          }, 200)
-          
-        } catch (parseError) {
-          console.error('💥 Erro ao fazer parse dos hotéis:', parseError)
-          console.log('🚨 Tentando hotéis mock como fallback...')
-          
-          // Fallback: criar hotéis mock
-          const mockHotels = [
-            {
-              name: "Hotel Premium São Paulo",
-              stars: 5,
-              rating: 4.8,
-              location: { district: "Jardins", city: "São Paulo" },
-              prices: { total: 600, currency: "BRL", nights: 2 },
-              amenities: ["Wi-Fi Grátis", "Piscina", "Spa", "Academia"],
-              category: "Luxo",
-              cancellation: "Cancelamento grátis",
-              breakfast: "Incluído"
-            },
-            {
-              name: "Grand Hotel Central São Paulo",
-              stars: 4,
-              rating: 4.3,
-              location: { district: "Centro", city: "São Paulo" },
-              prices: { total: 400, currency: "BRL", nights: 2 },
-              amenities: ["Wi-Fi Grátis", "Academia", "Restaurante"],
-              category: "Executivo",
-              cancellation: "Cancelamento grátis",
-              breakfast: "Incluído"
-            },
-            {
-              name: "City Comfort São Paulo",
-              stars: 3,
-              rating: 4.0,
-              location: { district: "Vila Olímpia", city: "São Paulo" },
-              prices: { total: 300, currency: "BRL", nights: 2 },
-              amenities: ["Wi-Fi Grátis", "Café da Manhã"],
-              category: "Conforto",
-              cancellation: "Cancelamento grátis",
-              breakfast: "Incluído"
-            }
-          ]
-          
-          setTimeout(() => {
-            const cardMessage = {
-              id: `hotels-fallback-${Date.now()}`,
-              role: 'assistant' as const,
-              content: `Aqui estão os hotéis disponíveis:`,
-              timestamp: new Date(),
-              cardData: {
-                type: 'hotels',
-                hotels: mockHotels,
-                summary: {
-                  hotelCount: mockHotels.length,
-                  priceRange: {
-                    min: Math.min(...mockHotels.map(h => h.prices.total)),
-                    max: Math.max(...mockHotels.map(h => h.prices.total))
-                  }
-                }
-              }
-            }
-            
-            setAiMessages(prev => [...prev, cardMessage])
-            console.log('💬 Card de hotéis mock adicionado ao chat!')
-            
-            // Atualizar frontend
-            setShowHotels(true)
-            updateActiveSection('hotels')
-          }, 200)
-        }
-      }
-      
-    } catch (error) {
-      console.error('💥 Erro ao processar dados estruturados:', error)
-    }
-  }
 
   // Função para limpar dados estruturados do texto da mensagem
   const cleanMessageText = (text: string) => {
@@ -632,7 +354,7 @@ export default function Home() {
     setSelectedHotel(hotel);
     
     // Criar mensagem do usuário
-    const userMessage = `Escolho o ${hotel.name} por ${hotel.prices?.currency === 'USD' ? '$' : 'R$'} ${hotel.prices?.total?.toLocaleString()} para ${hotel.nights} noites.`;
+    const userMessage = `Escolho o ${hotel.name} (${hotel.category}) por R$ ${hotel.price.toLocaleString()} por noite.`;
     
     // Enviar mensagem automaticamente para a IA
     await sendAIMessage(userMessage);
@@ -652,105 +374,78 @@ export default function Home() {
     
     setAiMessages(prev => [...prev, userMessage])
     setAiInput('')
-    setIsAILoading(true)
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          messages: [...aiMessages, userMessage].map(msg => ({
-            role: msg.role,
-            content: msg.content
-          }))
-        }),
-      })
+      // Usar o agente de IA
+      const response = await sendMessage(message)
 
-      if (!response.ok) {
-        throw new Error('Erro na resposta da API')
+      const assistantMessage = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant' as const,
+        content: response.message,
+        timestamp: new Date(),
+        toolCalls: response.toolCalls,
+        structuredData: response.structuredData
       }
 
-      const reader = response.body?.getReader()
-      if (!reader) {
-        throw new Error('Sem leitor de stream')
-      }
+      setAiMessages(prev => [...prev, assistantMessage])
 
-      let assistantMessage = ''
-      const assistantId = (Date.now() + 1).toString()
-      
-      // Adicionar mensagem vazia da assistente para mostrar loading
-      setAiMessages(prev => [...prev, {
-        id: assistantId,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date()
-      }])
-
-      // Ler stream
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = new TextDecoder().decode(value)
-        const lines = chunk.split('\n')
-        
-        for (const line of lines) {
-          if (line.startsWith('0:')) {
-            const text = line.slice(2).replace(/"/g, '')
-            assistantMessage += text
-            
-            // Limpar ACTIONS do texto para exibição
-            const cleanedMessage = cleanMessageText(assistantMessage)
-            
-            // Atualizar mensagem da assistente em tempo real
-            setAiMessages(prev => prev.map(msg => 
-              msg.id === assistantId 
-                ? { ...msg, content: cleanedMessage }
-                : msg
-            ))
+      // Processar dados estruturados se houver
+      if (response.structuredData) {
+        console.log('🔍 Dados estruturados recebidos:', response.structuredData)
+        const processedData = processStructuredData(response.structuredData)
+        console.log('📊 Dados processados:', processedData)
+        if (processedData) {
+          // Atualizar estados baseados no tipo de dados
+          if (processedData.type === 'flights') {
+            setShowMap(true)
+            setShowFlights(true)
+            updateActiveSection('flights')
+          } else if (processedData.type === 'hotels') {
+            setShowMap(true)
+            setShowFlights(true)
+            setShowHotels(true)
+            updateActiveSection('hotels')
           }
         }
       }
 
-      // Processar dados estruturados e detectar botões após receber a resposta COMPLETA
-      if (assistantMessage) {
-        // Aguardar um pouco para garantir que a mensagem foi totalmente processada
-        setTimeout(() => {
-          processStructuredData(assistantMessage)
-          
-          // Detectar se precisa adicionar botões
-          const questionButtons = detectQuestionButtons(assistantMessage)
-          if (questionButtons) {
-            console.log('🔘 Detectados botões para pergunta:', questionButtons)
-            
-            // Atualizar a última mensagem da IA para incluir botões
-            setAiMessages(prev => prev.map((msg, index) => {
-              if (index === prev.length - 1 && msg.role === 'assistant') {
-                return { ...msg, questionButtons }
-              }
-              return msg
-            }))
+      // Detectar se precisa adicionar botões
+      const questionButtons = detectQuestionButtons(response.message)
+      if (questionButtons) {
+        console.log('🔘 Detectados botões para pergunta:', questionButtons)
+        
+        // Atualizar a última mensagem da IA para incluir botões
+        setAiMessages(prev => prev.map((msg, index) => {
+          if (index === prev.length - 1 && msg.role === 'assistant') {
+            return { ...msg, questionButtons }
           }
-        }, 500)
+          return msg
+        }))
       }
 
       // Auto-scroll
       if (chatMessagesRef.current) {
-        chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight
+        setTimeout(() => {
+          chatMessagesRef.current?.scrollTo({
+            top: chatMessagesRef.current.scrollHeight,
+            behavior: 'smooth'
+          })
+        }, 100)
       }
 
     } catch (error) {
       console.error('Erro ao enviar mensagem:', error)
-      setAiMessages(prev => [...prev, {
+      
+      // Adicionar mensagem de erro
+      const errorMessage = {
         id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'Desculpe, ocorreu um erro. Tente novamente.',
+        role: 'assistant' as const,
+        content: agentError || 'Desculpe, ocorreu um erro ao processar sua mensagem. Tente novamente.',
         timestamp: new Date()
-      }])
-    } finally {
-      setIsAILoading(false)
+      }
+      
+      setAiMessages(prev => [...prev, errorMessage])
     }
   }
 
@@ -2775,6 +2470,20 @@ export default function Home() {
                               
                               {/* Renderizar card de resumo se existir */}
                               {message.cardData && renderSummaryCard(message.cardData)}
+                              
+                              {/* Renderizar dados estruturados do agente IA */}
+                              {message.structuredData && (() => {
+                                const processedData = processStructuredData(message.structuredData);
+                                console.log('🎨 Dados processados para renderização:', processedData);
+                                
+                                return processedData ? (
+                                  <StructuredDataDisplay 
+                                    data={processedData}
+                                    onFlightSelect={handleFlightSelection}
+                                    onHotelSelect={handleHotelSelection}
+                                  />
+                                ) : null;
+                              })()}
                               
                               {/* Renderizar botões de pergunta se existir */}
                               {message.questionButtons && (
