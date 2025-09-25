@@ -49,7 +49,7 @@ A estrutura do projeto inclui um Teste A/B que compara o fluxo conversacional da
 ```bash
 # Clone o repositório
 git clone <repository-url>
-cd sky-travels
+cd 
 
 # Instalar dependências
 pnpm install
