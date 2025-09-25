@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { DestinationAutocomplete } from "@/components/destination-autocomplete"
@@ -1350,23 +1351,40 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-background text-foreground relative">
       {/* Mode Toggle - Top Header */}
-      <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50">
-        <div className="bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg">
+      <motion.div 
+        className="fixed top-6 left-1/2 -translate-x-1/2 z-50"
+        initial={{ y: -20, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ delay: 0.5, duration: 0.6, ease: "easeOut" }}
+      >
+        <motion.div 
+          className="bg-background/80 backdrop-blur-sm border border-border rounded-full p-1 shadow-lg"
+          whileHover={{ scale: 1.02 }}
+          transition={{ duration: 0.2 }}
+        >
           <div className="flex items-center gap-1">
-            <button
+            <motion.button
               onClick={() => setIsAIMode(false)}
               className={`flex items-center gap-2 px-6 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                 !isAIMode 
                   ? 'bg-foreground text-background shadow-sm' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <motion.svg 
+                className="w-4 h-4" 
+                fill="currentColor" 
+                viewBox="0 0 20 20"
+                animate={!isAIMode ? { rotate: [0, 10, 0] } : {}}
+                transition={{ duration: 0.6, repeat: Infinity, repeatDelay: 3 }}
+              >
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clipRule="evenodd" />
-              </svg>
+              </motion.svg>
               Modo Assistido
-            </button>
-            <button
+            </motion.button>
+            <motion.button
               onClick={() => {
                 setIsAIMode(true)
                 setShowChatbot(true)
@@ -1377,15 +1395,36 @@ export default function Home() {
                   ? 'bg-foreground text-background shadow-sm' 
                   : 'text-muted-foreground hover:text-foreground'
               }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
             >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <motion.svg 
+                className="w-4 h-4" 
+                fill="currentColor" 
+                viewBox="0 0 20 20"
+                animate={isAIMode ? { 
+                  filter: [
+                    "drop-shadow(0 0 0px rgba(59, 130, 246, 0))",
+                    "drop-shadow(0 0 6px rgba(59, 130, 246, 0.6))",
+                    "drop-shadow(0 0 0px rgba(59, 130, 246, 0))"
+                  ]
+                } : {}}
+                transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 2 }}
+              >
                 <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
-              </svg>
-              Modo IA
-            </button>
+              </motion.svg>
+              <motion.span
+                animate={isAIMode ? { 
+                  color: ["#ffffff", "#3b82f6", "#ffffff"]
+                } : {}}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 2 }}
+              >
+                Modo IA
+              </motion.span>
+            </motion.button>
           </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       <nav className="fixed left-8 top-1/2 -translate-y-1/2 z-10 hidden lg:block">
         <div className="flex flex-col gap-6">
@@ -1503,35 +1542,139 @@ export default function Home() {
         >
           <div className="grid lg:grid-cols-5 gap-12 sm:gap-16 w-full">
             <div className="lg:col-span-3 space-y-6 sm:space-y-8">
-              <div className="space-y-3 sm:space-y-2">
-                <div className="text-sm text-muted-foreground font-mono tracking-wider">AGÊNCIA DE VIAGENS / 2025</div>
-                <h1 className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight">
-                  Sky
+              <motion.div 
+                className="space-y-3 sm:space-y-2"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.8, ease: "easeOut" }}
+              >
+                <motion.div 
+                  className="text-sm text-muted-foreground font-mono tracking-wider"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2, duration: 0.6 }}
+                >
+                  AGÊNCIA DE VIAGENS / 2025
+                </motion.div>
+                <motion.h1 
+                  className="text-5xl sm:text-6xl lg:text-7xl font-light tracking-tight"
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4, duration: 0.8, ease: "easeOut" }}
+                >
+                  <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={{ 
+                      opacity: 1,
+                      textShadow: [
+                        "0 0 0px rgba(59, 130, 246, 0)",
+                        "0 0 10px rgba(59, 130, 246, 0.3)",
+                        "0 0 0px rgba(59, 130, 246, 0)"
+                      ]
+                    }}
+                    transition={{ 
+                      delay: 0.6, 
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatDelay: 3,
+                      ease: "easeInOut"
+                    }}
+                  >
+                    Sky
+                  </motion.span>
                   <br />
-                  <span className="text-muted-foreground">Travels</span>
-                </h1>
-              </div>
+                  <motion.span 
+                    className="text-muted-foreground"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8, duration: 0.6 }}
+                  >
+                    Travels
+                  </motion.span>
+                </motion.h1>
+              </motion.div>
 
-              <div className="space-y-6 max-w-md">
-                <p className="text-lg sm:text-xl text-muted-foreground leading-relaxed">
+              <motion.div 
+                className="space-y-6 max-w-md"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 1, duration: 0.8, ease: "easeOut" }}
+              >
+                <motion.p 
+                  className="text-lg sm:text-xl text-muted-foreground leading-relaxed"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.2, duration: 0.6 }}
+                >
                   Sua próxima aventura começa aqui. Oferecemos as melhores experiências de
-                  <span className="text-foreground"> viagem</span>,<span className="text-foreground"> voos</span>,
+                  <motion.span 
+                    className="text-foreground"
+                    animate={{ 
+                      color: ["#ffffff", "#3b82f6", "#ffffff"],
+                    }}
+                    transition={{ 
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatDelay: 4,
+                      ease: "easeInOut"
+                    }}
+                  > viagem</motion.span>,<motion.span 
+                    className="text-foreground"
+                    animate={{ 
+                      color: ["#ffffff", "#8b5cf6", "#ffffff"],
+                    }}
+                    transition={{ 
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatDelay: 4,
+                      delay: 0.5,
+                      ease: "easeInOut"
+                    }}
+                  > voos</motion.span>,
                   e
-                  <span className="text-foreground"> hospedagem</span>.
-                </p>
+                  <motion.span 
+                    className="text-foreground"
+                    animate={{ 
+                      color: ["#ffffff", "#10b981", "#ffffff"],
+                    }}
+                    transition={{ 
+                      duration: 2,
+                      repeat: Infinity,
+                      repeatDelay: 4,
+                      delay: 1,
+                      ease: "easeInOut"
+                    }}
+                  > hospedagem</motion.span>.
+                </motion.p>
 
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 text-sm text-muted-foreground">
+                <motion.div 
+                  className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 text-sm text-muted-foreground"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 1.4, duration: 0.6 }}
+                >
                   <div className="flex items-center gap-2">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                    <motion.div 
+                      className="w-2 h-2 bg-green-500 rounded-full"
+                      animate={{ 
+                        scale: [1, 1.2, 1],
+                        opacity: [1, 0.7, 1]
+                      }}
+                      transition={{ 
+                        duration: 2,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    ></motion.div>
                     Reservas abertas 24/7
                   </div>
                   <div>Brasil & Internacional</div>
-                </div>
-              </div>
+                </motion.div>
+              </motion.div>
             </div>
 
             <div className="lg:col-span-2 flex flex-col justify-end space-y-6 sm:space-y-8 mt-8 lg:mt-0">
-            <button
+            <motion.button
               onClick={() => {
                 setShowChatbot(true)
                 addChatbotMessage('Olá! Sou a Lívia Assist, sua assistente pessoal de viagem. Vou te ajudar durante todo o processo de reserva! 🌟\n\nPara começar, você precisa preencher os campos de origem, destino e data de ida. Vamos começar?', 'info', 'welcome-start-message')
@@ -1541,13 +1684,44 @@ export default function Home() {
                 }, 100)
               }}
               className="px-8 py-4 bg-foreground text-background rounded-lg hover:bg-muted-foreground transition-all duration-300 font-medium text-lg group"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 1.6, duration: 0.8, ease: "easeOut" }}
+              whileHover={{ 
+                scale: 1.05,
+                boxShadow: "0 10px 25px rgba(59, 130, 246, 0.3)"
+              }}
+              whileTap={{ scale: 0.95 }}
             >
-              Vamos Começar
-              <svg
-                className="w-5 h-5 ml-2 inline-block transform group-hover:translate-x-1 transition-transform duration-300"
+              <motion.span
+                animate={{ 
+                  textShadow: [
+                    "0 0 0px rgba(255, 255, 255, 0)",
+                    "0 0 8px rgba(255, 255, 255, 0.5)",
+                    "0 0 0px rgba(255, 255, 255, 0)"
+                  ]
+                }}
+                transition={{ 
+                  duration: 2,
+                  repeat: Infinity,
+                  repeatDelay: 3,
+                  ease: "easeInOut"
+                }}
+              >
+                Vamos Começar
+              </motion.span>
+              <motion.svg
+                className="w-5 h-5 ml-2 inline-block"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
+                animate={{ y: [0, -3, 0] }}
+                transition={{ 
+                  duration: 1.5,
+                  repeat: Infinity,
+                  repeatDelay: 2,
+                  ease: "easeInOut"
+                }}
               >
                 <path
                   strokeLinecap="round"
@@ -1555,8 +1729,8 @@ export default function Home() {
                   strokeWidth={2}
                   d="M19 14l-7 7m0 0l-7-7m7 7V3"
                 />
-              </svg>
-            </button>
+              </motion.svg>
+            </motion.button>
             </div>
           </div>
         </header>
