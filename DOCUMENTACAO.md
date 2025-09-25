@@ -240,7 +240,13 @@ hotels {
 - **Implementação**: 300ms → 600ms → 1200ms → falha
 - **Motivo**: Balancear latência vs confiabilidade
 
-### 4. **Prisma **)
+### 3. **SQLite vs PostgreSQL**
+- **Decisão**: SQLite para desenvolvimento, PostgreSQL para produção
+- **Motivo**: Simplicidade local, escalabilidade em produção
+- **Trade-off**: Limitações de concorrência, mas setup mais simples
+
+### 4. **Prisma vs Drizzle**
+- **Decisão**: Prisma (após problemas com Drizzle no Windows)
 - **Motivo**: Melhor suporte multiplataforma e TypeScript
 - **Trade-off**: Bundle maior, mas melhor DX
 
